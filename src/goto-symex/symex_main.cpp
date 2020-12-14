@@ -395,10 +395,7 @@ void goto_symext::resume_symex_from_saved_state(
 
   // Do NOT do the same initialization that `symex_with_state` does for a
   // fresh state, as that would clobber the saved state's program counter
-  symex_with_state(
-      state,
-      get_goto_function,
-      new_symbol_table);
+  symex_with_state(state, get_goto_function, new_symbol_table);
 }
 
 std::unique_ptr<goto_symext::statet> goto_symext::initialize_entry_point_state(

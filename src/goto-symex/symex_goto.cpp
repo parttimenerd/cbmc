@@ -11,6 +11,7 @@ Author: Daniel Kroening, kroening@kroening.com
 
 #include "goto_symex.h"
 #include "goto_symex_is_constant.h"
+#include "loopstack.hpp"
 
 #include <algorithm>
 
@@ -22,6 +23,7 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <util/simplify_expr.h>
 #include <util/std_expr.h>
 
+#include <iostream>
 #include <pointer-analysis/add_failed_symbols.h>
 #include <pointer-analysis/value_set_dereference.h>
 
@@ -267,6 +269,22 @@ void goto_symext::symex_goto(statet &state)
 
   if(backward)
   {
+    const auto loop_id =
+      goto_programt::loop_id(state.source.function_id, *state.source.pc);
+
+    unsigned &unwind = state.call_stack().top().loop_iterations[loop_id].count;
+
+    if(
+      should_stop_unwind(state.source, state.call_stack(), unwind + 2) &&
+      !should_stop_unwind(state.source, state.call_stack(), unwind + 1))
+    {
+      // almost unwind
+      // start recording
+      target.set_loop_stack(&ls_stack);
+      std::cout << "push at unwind " << unwind << "\n";
+      ls_stack.push();
+    }
+
     // is it label: goto label; or while(cond); - popular in SV-COMP
     if(
       symex_config.self_loops_to_assumptions &&
@@ -289,10 +307,6 @@ void goto_symext::symex_goto(statet &state)
       return;
     }
 
-    const auto loop_id =
-      goto_programt::loop_id(state.source.function_id, *state.source.pc);
-
-    unsigned &unwind = state.call_stack().top().loop_iterations[loop_id].count;
     unwind++;
 
     if(should_stop_unwind(state.source, state.call_stack(), unwind))
@@ -302,6 +316,7 @@ void goto_symext::symex_goto(statet &state)
 
       // next instruction
       symex_transition(state);
+      ls_stack.pop();
       return;
     }
 
@@ -313,6 +328,8 @@ void goto_symext::symex_goto(statet &state)
         should_pause_symex = true;
       }
       symex_transition(state, goto_target, true);
+      std::cout << "sdfsdf"
+                << "\n";
       return; // nothing else to do
     }
   }

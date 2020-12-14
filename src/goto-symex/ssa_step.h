@@ -12,6 +12,7 @@ Author: Romain Brenguier <romain.brenguier@diffblue.com>
 #include <util/ssa_expr.h>
 
 #include <goto-programs/goto_trace.h>
+#include <iostream>
 
 #include "symex_target.h"
 

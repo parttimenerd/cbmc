@@ -15,6 +15,8 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <util/message.h>
 
 #include "complexity_limiter.h"
+#include "loopstack.hpp"
+#include "path_storage.h"
 #include "symex_config.h"
 
 class address_of_exprt;
@@ -218,6 +220,8 @@ protected:
 
   messaget::mstreamt &
   print_callstack_entry(const symex_targett::sourcet &target);
+
+  loop_stack ls_stack;
 
 public:
 

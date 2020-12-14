@@ -17,6 +17,8 @@ Author: Daniel Kroening, kroening@kroening.com
 
 #include <analyses/guard.h>
 
+#include <goto-programs/goto_function.h>
+#include <iostream>
 #include <util/invariant.h>
 #include <util/nodiscard.h>
 #include <util/ssa_expr.h>

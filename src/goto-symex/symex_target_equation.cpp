@@ -19,7 +19,20 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <solvers/decision_procedure.h>
 #include <solvers/hardness_collector.h>
 
+#include "loopstack.hpp"
 #include "ssa_step.h"
+
+void register_ssa_step(loop_stack *stack, SSA_stept &SSA_step)
+{
+  if(stack != nullptr)
+  {
+    stack->access(&SSA_step.guard);
+    stack->access(&SSA_step.ssa_lhs);
+    stack->access(&SSA_step.ssa_full_lhs);
+    stack->access(&SSA_step.ssa_rhs);
+    stack->access(&SSA_step.cond_expr);
+  }
+}
 
 static hardness_collectort::handlert
 hardness_register_ssa(std::size_t step_index, const SSA_stept &step)
@@ -35,6 +48,10 @@ void symex_target_equationt::shared_read(
   unsigned atomic_section_id,
   const sourcet &source)
 {
+  if(stack)
+  {
+    stack->access(&guard);
+  }
   SSA_steps.emplace_back(source, goto_trace_stept::typet::SHARED_READ);
   SSA_stept &SSA_step=SSA_steps.back();
 
@@ -53,7 +70,10 @@ void symex_target_equationt::shared_write(
 {
   SSA_steps.emplace_back(source, goto_trace_stept::typet::SHARED_WRITE);
   SSA_stept &SSA_step=SSA_steps.back();
-
+  if(stack)
+  {
+    stack->access(&guard);
+  }
   SSA_step.guard=guard;
   SSA_step.ssa_lhs=ssa_object;
   SSA_step.atomic_section_id=atomic_section_id;
@@ -123,14 +143,21 @@ void symex_target_equationt::assignment(
 {
   PRECONDITION(ssa_lhs.is_not_nil());
 
-  SSA_steps.emplace_back(SSA_assignment_stept{source,
-                                              guard,
-                                              ssa_lhs,
-                                              ssa_full_lhs,
-                                              original_full_lhs,
-                                              ssa_rhs,
-                                              assignment_type});
+  SSA_steps.emplace_back(SSA_assignment_stept{
+    source,
+    guard,
+    ssa_lhs,
+    ssa_full_lhs,
+    original_full_lhs,
+    ssa_rhs,
+    assignment_type});
+  if(stack != nullptr)
+  {
+    stack->assign(ssa_lhs.get_identifier());
+    stack->access(&ssa_rhs);
+  }
 
+  register_ssa_step(stack, SSA_steps.back());
   merge_ireps(SSA_steps.back());
 }
 
@@ -156,6 +183,7 @@ void symex_target_equationt::decl(
   // there so we see the symbols
   SSA_step.cond_expr=equal_exprt(SSA_step.ssa_lhs, SSA_step.ssa_lhs);
 
+  register_ssa_step(stack, SSA_step);
   merge_ireps(SSA_step);
 }
 
@@ -305,9 +333,16 @@ void symex_target_equationt::goto_instruction(
   SSA_steps.emplace_back(source, goto_trace_stept::typet::GOTO);
   SSA_stept &SSA_step=SSA_steps.back();
 
+  if(stack != nullptr)
+  {
+    stack->access(&guard);
+    stack->access(&cond.get());
+  }
+
   SSA_step.guard=guard;
   SSA_step.cond_expr = cond.get();
 
+  register_ssa_step(stack, SSA_step);
   merge_ireps(SSA_step);
 }
 

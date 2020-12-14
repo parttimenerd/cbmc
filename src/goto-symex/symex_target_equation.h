@@ -26,16 +26,27 @@ Author: Daniel Kroening, kroening@kroening.com
 
 class decision_proceduret;
 class namespacet;
+class decision_proceduret;
+class hardness_collectort;
+struct solver_hardnesst;
+class loop_stack;
 
 /// Inheriting the interface of symex_targett this class represents the SSA
 /// form of the input program as a list of \ref SSA_stept. It further extends
 /// the base class by providing a conversion interface for decision procedures.
 class symex_target_equationt:public symex_targett
 {
+  loop_stack *stack = nullptr;
+
 public:
   explicit symex_target_equationt(message_handlert &message_handler)
     : log(message_handler)
   {
+  }
+
+  void set_loop_stack(loop_stack *new_stack)
+  {
+    this->stack = new_stack;
   }
 
   virtual ~symex_target_equationt() = default;
