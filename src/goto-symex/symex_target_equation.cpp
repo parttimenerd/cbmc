@@ -22,18 +22,6 @@ Author: Daniel Kroening, kroening@kroening.com
 #include "loopstack.hpp"
 #include "ssa_step.h"
 
-void register_ssa_step(loop_stack *stack, SSA_stept &SSA_step)
-{
-  if(stack != nullptr)
-  {
-    stack->access(&SSA_step.guard);
-    stack->access(&SSA_step.ssa_lhs);
-    stack->access(&SSA_step.ssa_full_lhs);
-    stack->access(&SSA_step.ssa_rhs);
-    stack->access(&SSA_step.cond_expr);
-  }
-}
-
 static hardness_collectort::handlert
 hardness_register_ssa(std::size_t step_index, const SSA_stept &step)
 {
@@ -48,10 +36,6 @@ void symex_target_equationt::shared_read(
   unsigned atomic_section_id,
   const sourcet &source)
 {
-  if(stack)
-  {
-    stack->access(&guard);
-  }
   SSA_steps.emplace_back(source, goto_trace_stept::typet::SHARED_READ);
   SSA_stept &SSA_step=SSA_steps.back();
 
@@ -70,10 +54,6 @@ void symex_target_equationt::shared_write(
 {
   SSA_steps.emplace_back(source, goto_trace_stept::typet::SHARED_WRITE);
   SSA_stept &SSA_step=SSA_steps.back();
-  if(stack)
-  {
-    stack->access(&guard);
-  }
   SSA_step.guard=guard;
   SSA_step.ssa_lhs=ssa_object;
   SSA_step.atomic_section_id=atomic_section_id;
@@ -154,10 +134,7 @@ void symex_target_equationt::assignment(
   if(stack != nullptr)
   {
     stack->assign(ssa_lhs.get_identifier());
-    stack->access(&ssa_rhs);
   }
-
-  register_ssa_step(stack, SSA_steps.back());
   merge_ireps(SSA_steps.back());
 }
 
@@ -183,7 +160,6 @@ void symex_target_equationt::decl(
   // there so we see the symbols
   SSA_step.cond_expr=equal_exprt(SSA_step.ssa_lhs, SSA_step.ssa_lhs);
 
-  register_ssa_step(stack, SSA_step);
   merge_ireps(SSA_step);
 }
 
@@ -223,7 +199,10 @@ void symex_target_equationt::function_call(
   for(const auto &arg : function_arguments)
     SSA_step.ssa_function_arguments.emplace_back(arg.get());
   SSA_step.hidden = hidden;
-
+  if(stack != nullptr)
+  {
+    stack->assign(SSA_step.ssa_lhs.get_identifier());
+  }
   merge_ireps(SSA_step);
 }
 
@@ -239,7 +218,6 @@ void symex_target_equationt::function_return(
   SSA_step.guard = guard;
   SSA_step.called_function = function_id;
   SSA_step.hidden = hidden;
-
   merge_ireps(SSA_step);
 }
 
@@ -333,16 +311,9 @@ void symex_target_equationt::goto_instruction(
   SSA_steps.emplace_back(source, goto_trace_stept::typet::GOTO);
   SSA_stept &SSA_step=SSA_steps.back();
 
-  if(stack != nullptr)
-  {
-    stack->access(&guard);
-    stack->access(&cond.get());
-  }
-
   SSA_step.guard=guard;
   SSA_step.cond_expr = cond.get();
 
-  register_ssa_step(stack, SSA_step);
   merge_ireps(SSA_step);
 }
 

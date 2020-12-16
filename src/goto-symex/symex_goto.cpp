@@ -275,14 +275,24 @@ void goto_symext::symex_goto(statet &state)
     unsigned &unwind = state.call_stack().top().loop_iterations[loop_id].count;
 
     if(
+      instruction.is_backwards_goto() &&
+      state.call_stack()
+          .top()
+          .loop_iterations[goto_programt::loop_id(
+            state.source.function_id, *state.source.pc)]
+          .count == 0)
+    {
+      ls_stack.push_back_loop();
+    }
+
+    if(
       should_stop_unwind(state.source, state.call_stack(), unwind + 2) &&
       !should_stop_unwind(state.source, state.call_stack(), unwind + 1))
     {
       // almost unwind
       // start recording
-      target.set_loop_stack(&ls_stack);
-      std::cout << "push at unwind " << unwind << "\n";
-      ls_stack.push();
+      //std::cout << "push at unwind " << unwind << "\n";
+      ls_stack.push_last_loop_iteration();
     }
 
     // is it label: goto label; or while(cond); - popular in SV-COMP
@@ -308,6 +318,11 @@ void goto_symext::symex_goto(statet &state)
     }
 
     unwind++;
+    //std::cout << "unwind " << unwind << "\n";
+    if(should_stop_unwind(state.source, state.call_stack(), unwind))
+    {
+      ls_stack.pop_last_loop_iteration();
+    }
 
     if(should_stop_unwind(state.source, state.call_stack(), unwind))
     {
@@ -316,7 +331,6 @@ void goto_symext::symex_goto(statet &state)
 
       // next instruction
       symex_transition(state);
-      ls_stack.pop();
       return;
     }
 
@@ -328,8 +342,6 @@ void goto_symext::symex_goto(statet &state)
         should_pause_symex = true;
       }
       symex_transition(state, goto_target, true);
-      std::cout << "sdfsdf"
-                << "\n";
       return; // nothing else to do
     }
   }

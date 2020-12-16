@@ -69,6 +69,7 @@ public:
       _remaining_vccs(std::numeric_limits<unsigned>::max()),
       complexity_module(mh, options)
   {
+    target.set_loop_stack(&ls_stack);
   }
 
   /// A virtual destructor allowing derived classes to be cleaned up correctly

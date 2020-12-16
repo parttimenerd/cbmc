@@ -19,85 +19,120 @@ Author: Johannes Bechberger, johannes@bechberger.me
 
 class symex_target_equationt;
 
-class ls_element
+struct scope
 {
-  size_t eid;
-
-  std::unordered_set<dstringt> accessed;
+  size_t id;
   std::unordered_set<dstringt> assigned;
 
-public:
-  ls_element(size_t id);
-
-  void emit();
+  explicit scope(size_t id) : id(id)
+  {
+  }
 
   void assign(dstringt id);
+};
 
-  void access(dstringt id);
+class loop_stack;
 
-  void access(const exprt *expr);
+struct loop_iteration
+{
+  size_t id;
 
-  void merge(ls_element &inner);
+  loop_stack *stack;
+
+  scope &before_end;
+
+  scope &start;
+
+  scope &end;
+
+  loop_iteration(
+    size_t id,
+    loop_stack *stack,
+    scope &before_end,
+    scope &start,
+    scope &end)
+    : id(id), stack(stack), before_end(before_end), start(start), end(end)
+  {
+  }
+
+  std::vector<dstringt> assigned_variables() const;
+
+  std::vector<dstringt> outer_loop_variables() const;
+
+  friend std::ostream &
+  operator<<(std::ostream &os, const loop_iteration &iteration);
 };
 
 class loop_stack
 {
-  size_t max_id = 0;
+  size_t max_loop_id = 0;
 
-  std::vector<ls_element> elements;
+  std::vector<scope> scopes;
+
+  std::vector<loop_iteration> iterations;
+
+  std::vector<size_t> before_ends;
 
 public:
-  void push()
+  const std::vector<scope> &get_scopes()
   {
-    elements.emplace_back(max_id);
-    max_id++;
+    return scopes;
   }
 
-  void pop()
+  loop_stack()
   {
-    auto &last = elements.back();
-    if(elements.size() > 1)
-    {
-      elements.at(elements.size() - 2).merge(last);
-    }
-    last.emit();
-    elements.pop_back();
+    push_back_scope();
   }
 
-  ls_element &top()
+  scope &current_scope()
   {
-    return elements.front();
+    return scopes.back();
+  }
+
+  void push_back_scope()
+  {
+    scopes.emplace_back(scopes.size());
+  }
+
+  void push_back_loop()
+  {
+    before_ends.push_back(current_scope().id);
+    push_back_scope();
+    //std::cout << "start loop\n";
+  }
+
+  scope &pop_loop()
+  {
+    auto before_end = before_ends.back();
+    before_ends.pop_back();
+    return scopes.at(before_end);
+  }
+
+  void push_last_loop_iteration()
+  {
+    push_back_scope();
+    iterations.emplace_back(
+      max_loop_id, this, pop_loop(), current_scope(), current_scope());
+    max_loop_id++;
+  }
+
+  void pop_last_loop_iteration()
+  {
+    auto &last = iterations.back();
+    last.end = current_scope();
+    std::cout << last << "\n";
+    //std::cout << "-> pop loop\n";
+    iterations.pop_back();
+    push_back_scope();
   }
 
   void assign(dstringt id)
   {
-    if(has_loop())
-    {
-      std::cout << "assign " << id << "\n";
-      top().assign(id);
-    }
+    //std::cout << id << "\n";
+    current_scope().assign(id);
   }
 
-  void access(const dstringt id)
-  {
-    if(has_loop())
-    {
-      top().access(id);
-    }
-  }
-
-  void access(const exprt *expr)
-  {
-    if(has_loop())
-    {
-      top().access(expr);
-    }
-  }
-
-  bool has_loop()
-  {
-    return !elements.empty();
-  }
+  std::vector<dstringt> variables(size_t start_scope, size_t end_scope);
 };
 
 #endif //CBMC_LOOPSTACK_HPP

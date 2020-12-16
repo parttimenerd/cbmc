@@ -4,74 +4,115 @@
 
 #include "loopstack.hpp"
 #include "symex_target_equation.h"
+#include <string_utils.h>
 
-ls_element::ls_element(size_t id) : eid(id)
+void scope::assign(dstringt var)
 {
+  assigned.emplace(var);
 }
 
-void ls_element::emit()
+std::vector<dstringt> loop_iteration::assigned_variables() const
 {
-  std::cout << "c loop assigned " << eid;
-  for(const auto &a : assigned)
+  return stack->variables(start.id, end.id);
+}
+
+std::string normalize(std::string str)
+{
+  auto split = split_string(str, '@', true, true);
+  if(split.size() == 1)
   {
-    std::cout << " " << a;
+    return str;
   }
-  std::cout << "\n";
-  std::cout << "c loop accessed " << eid;
-  for(const auto &a : accessed)
+  auto split2 = split_string(split.at(1), '#', true, true);
+  return split.at(0);
+}
+
+std::unordered_set<std::string> normalize(std::vector<dstringt> vars)
+{
+  std::unordered_set<std::string> ret;
+  for(auto var : vars)
   {
-    std::cout << " " << a;
+    ret.emplace(normalize(var.c_str()));
   }
-  std::cout << "\n";
+  return ret;
 }
 
-void ls_element::assign(dstringt id)
+std::unordered_map<std::string, std::vector<dstringt>>
+sorted_hash(std::vector<dstringt> &vec)
 {
-  assigned.emplace(id);
-}
-
-void ls_element::access(dstringt id)
-{
-  std::cout << "# -> " << id << "\n";
-  accessed.emplace(id);
-}
-
-void ls_element::merge(ls_element &inner)
-{
-  accessed.insert(inner.accessed.begin(), inner.accessed.end());
-  assigned.insert(inner.assigned.begin(), inner.assigned.end());
-}
-
-template <class T>
-void collect_identifiers(
-  const dstringt name,
-  const T &map,
-  std::unordered_set<dstringt> &collected)
-{
-  for(const auto &item : map)
+  std::unordered_map<std::string, std::vector<dstringt>> ret;
+  for(auto var : vec)
   {
-    const irept &expr = item.second;
-    //std::cout << "access " << name << " "  << item.first << " " << expr.id() << "\n";
-    if(
-      expr.is_not_nil() && item.first == ID_identifier &&
-      (name == ID_symbol || name == ID_nondet_symbol || name == ID_next_symbol))
+    auto split = split_string(split_string(var.c_str(), '#').at(0), '@');
+    ret[split.at(0)].emplace_back(var);
+  }
+  return ret;
+}
+
+std::vector<dstringt> loop_iteration::outer_loop_variables() const
+{
+  auto outer_vars = stack->variables(0, before_end.id);
+  auto assigned_vars = assigned_variables();
+  auto normalized_assigned = normalize(assigned_vars);
+
+  std::vector<dstringt> ret;
+
+  auto outer_sorted = sorted_hash(outer_vars);
+  auto assigned_sorted = sorted_hash(assigned_vars);
+
+  for(const auto &item : outer_sorted)
+  {
+    if(assigned_sorted.find(item.first) != assigned_sorted.end())
     {
-      collected.emplace(expr.id());
+      auto assigned_size = assigned_sorted[item.first].size();
+      for(size_t i = 0; i < item.second.size() - assigned_size; i++)
+      {
+        ret.emplace_back(item.second.at(i));
+      }
     }
-    else if(item.first == ID_identifier)
+    else
     {
-      //std::cout << "discarded access to " << expr.id() << "\n";
+      ret.insert(ret.end(), item.second.begin(), item.second.end());
     }
-    collect_identifiers(item.first, item.second.get_named_sub(), collected);
   }
+
+  /*for(auto var : outer_vars)
+  {
+    if (normalized_assigned.find(normalize(var.c_str())) == assigned_vars.end()){
+      ret.emplace_back(var);
+    }
+  }*/
+
+  return ret;
 }
 
-void ls_element::access(const exprt *expr)
+std::ostream &operator<<(std::ostream &os, const loop_iteration &iteration)
 {
-  std::unordered_set<dstringt> collected;
-  collect_identifiers(expr->id(), expr->get_named_sub(), collected);
-  for(const auto item : collected)
+  os << "c loop " << iteration.id << " assigned ";
+  for(const auto &var : iteration.assigned_variables())
   {
-    access(item);
+    os << " " << var;
   }
+  os << " | outer ";
+  for(const auto &var : iteration.outer_loop_variables())
+  {
+    os << " " << var;
+  }
+  os << "\n";
+  return os;
+}
+
+std::vector<dstringt>
+loop_stack::variables(size_t start_scope, size_t end_scope)
+{
+  std::vector<dstringt> ret;
+  for(size_t i = start_scope; i <= end_scope; i++)
+  {
+    auto sc = scopes.at(i);
+    for(auto var : sc.assigned)
+    {
+      ret.push_back(var);
+    }
+  }
+  return ret;
 }
