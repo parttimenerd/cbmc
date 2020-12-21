@@ -62,6 +62,24 @@ void guard_exprt::add(const exprt &expr)
     op.push_back(expr);
 }
 
+exprt guard_exprt::first_guard() const
+{
+  if(is_true() || is_false() || this->expr.id() != ID_and)
+    return as_expr();
+
+  auto &op = this->expr.operands();
+  return op.front();
+}
+
+exprt guard_exprt::last_guard() const
+{
+  if(is_true() || is_false() || this->expr.id() != ID_and)
+    return as_expr();
+
+  auto &op = this->expr.operands();
+  return op.back();
+}
+
 guard_exprt &operator-=(guard_exprt &g1, const guard_exprt &g2)
 {
   if(g1.expr.id() != ID_and)

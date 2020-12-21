@@ -14,6 +14,7 @@ Author: Daniel Kroening, kroening@kroening.com
 #include "validate_expressions.h"
 #include "validate_types.h"
 #include "validation_mode.h"
+#include <ostream>
 
 #define forall_operands(it, expr)                                              \
   for(exprt::operandst::const_iterator                                         \
@@ -334,6 +335,8 @@ public:
   const_unique_depth_iteratort unique_depth_end() const;
   const_unique_depth_iteratort unique_depth_cbegin() const;
   const_unique_depth_iteratort unique_depth_cend() const;
+
+  std::string to_string2() const;
 };
 
 /// Base class for all expressions. This protects low-level methods in

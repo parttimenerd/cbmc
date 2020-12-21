@@ -27,6 +27,7 @@ Author: Daniel Kroening, kroening@kroening.com
 #include "call_stack.h"
 #include "field_sensitivity.h"
 #include "goto_state.h"
+#include "loopstack.hpp"
 #include "renaming_level.h"
 #include "symex_target_equation.h"
 

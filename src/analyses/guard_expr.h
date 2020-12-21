@@ -48,6 +48,16 @@ public:
     return expr;
   }
 
+  /// Returns the first part of this guard expression (assuming that this is a
+  /// combined guard)
+  /// \return first part or self
+  exprt first_guard() const;
+
+  /// Returns the last part of this guard expression (assuming that this is a
+  /// combined guard)
+  /// \return last part or self
+  exprt last_guard() const;
+
   /// The result of \ref as_expr is not always in a simplified form
   /// and may requires some simplification.
   /// This can vary according to the guard implementation.

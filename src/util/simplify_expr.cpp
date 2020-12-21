@@ -9,6 +9,7 @@ Author: Daniel Kroening, kroening@kroening.com
 #include "simplify_expr.h"
 
 #include <algorithm>
+#include <iostream>
 
 #include "bitvector_expr.h"
 #include "byte_operators.h"
@@ -36,6 +37,7 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <iostream>
 #endif
 
+#include "format_expr.h"
 #include "simplify_expr_class.h"
 
 // #define USE_CACHE

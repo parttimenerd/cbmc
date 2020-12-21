@@ -131,7 +131,7 @@ void symex_target_equationt::assignment(
     original_full_lhs,
     ssa_rhs,
     assignment_type});
-  if(stack != nullptr)
+  if(stack != nullptr && !ssa_rhs.is_constant())
   {
     stack->assign(ssa_lhs.get_identifier());
   }
@@ -199,7 +199,9 @@ void symex_target_equationt::function_call(
   for(const auto &arg : function_arguments)
     SSA_step.ssa_function_arguments.emplace_back(arg.get());
   SSA_step.hidden = hidden;
-  if(stack != nullptr)
+  if(
+    !SSA_step.ssa_lhs.get_identifier().empty() && stack != nullptr &&
+    !SSA_step.ssa_lhs.is_constant())
   {
     stack->assign(SSA_step.ssa_lhs.get_identifier());
   }

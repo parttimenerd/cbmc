@@ -7,6 +7,13 @@
 
 [CProver Documentation](http://cprover.diffblue.com)
 
+Modifications
+=============
+This CBMC is modified to capture information needed for over-approximating loops with DSharpy.
+The emitted DIMACS output on stdout should be converted into DSharpies file format via
+its convert tool.
+
+
 About
 =====
 

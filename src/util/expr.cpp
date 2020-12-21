@@ -19,6 +19,9 @@ Author: Daniel Kroening, kroening@kroening.com
 #include "rational_tools.h"
 #include "std_expr.h"
 
+#include "format_expr.h"
+// clang-format on
+
 #include <stack>
 
 /// Return whether the expression is a constant.
@@ -287,3 +290,10 @@ const_unique_depth_iteratort exprt::unique_depth_cbegin() const
 { return const_unique_depth_iteratort(*this); }
 const_unique_depth_iteratort exprt::unique_depth_cend() const
 { return const_unique_depth_iteratort(); }
+
+std::string exprt::to_string2() const
+{
+  std::ostringstream ss;
+  format_rec(ss, *this);
+  return ss.str();
+}

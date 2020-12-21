@@ -24,6 +24,7 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <util/invariant.h>
 #include <util/std_expr.h>
 
+#include "loopstack.hpp"
 #include <analyses/dirty.h>
 #include <pointer-analysis/add_failed_symbols.h>
 

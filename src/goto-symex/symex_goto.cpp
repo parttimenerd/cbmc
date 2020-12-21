@@ -23,6 +23,7 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <util/simplify_expr.h>
 #include <util/std_expr.h>
 
+#include <fresh_symbol.h>
 #include <iostream>
 #include <pointer-analysis/add_failed_symbols.h>
 #include <pointer-analysis/value_set_dereference.h>
@@ -254,6 +255,8 @@ void goto_symext::symex_goto(statet &state)
   }
 
   target.goto_instruction(state.guard.as_expr(), renamed_guard, state.source);
+
+  ls_stack.set_iter_guard(state.guard);
 
   DATA_INVARIANT(
     !instruction.targets.empty(), "goto should have at least one target");
@@ -752,6 +755,7 @@ void goto_symext::merge_goto(
 /// \param goto_count: current level 2 count in \p goto_state of
 ///   \p l1_identifier
 /// \param dest_count: level 2 count in \p dest_state of \p l1_identifier
+/// \param ls_stack: loop stack to track the guards in
 static void merge_names(
   const goto_statet &goto_state,
   goto_symext::statet &dest_state,
@@ -763,7 +767,9 @@ static void merge_names(
   const incremental_dirtyt &dirty,
   const ssa_exprt &ssa,
   const unsigned goto_count,
-  const unsigned dest_count)
+  const unsigned dest_count,
+  loop_stack &ls_stack,
+  symbol_tablet &symbol_table)
 {
   const irep_idt l1_identifier = ssa.get_identifier();
   const irep_idt &obj_identifier = ssa.get_object_name();
@@ -861,6 +867,40 @@ static void merge_names(
               << pointer_offset_bits(new_lhs.type(), ns).value_or(0) << " bits]"
               << messaget::eom;
     });
+  // find the phi whose first guard part is the guard of the last loop iteration
+  // negated
+  if(rhs.operands().at(0).has_operands())
+  {
+    auto first = to_not_expr(rhs.operands().at(0).operands().at(0)).op();
+    std::cout << new_lhs.to_string2() << " " << rhs.to_string2() << " "
+              << first.to_string2() << "\n";
+    auto iter = ls_stack.get_iter_for_last_guard(first);
+    if(iter != nullptr)
+    {
+      std::cout << "found iter " << iter->id << " "
+                << iter->guard.value().as_expr().to_string2() << "\n";
+      auto new_var = get_fresh_aux_symbol(
+        rhs.type(),
+        "oa_unknown",
+        new_lhs.to_string2(),
+        new_lhs.source_location(),
+        symbol.mode,
+        ns,
+        symbol_table);
+      iter->add_used_after(new_lhs.get_identifier());
+      // a = phi(guard,c,d) → a = new_var
+      target.assignment(
+        true_exprt(),
+        new_lhs,
+        new_lhs,
+        new_lhs.get_original_expr(),
+        new_var.symbol_expr(),
+        dest_state.source,
+        symex_targett::assignment_typet::PHI);
+      return;
+    }
+  }
+  //to_if_expr(rhs).make_over_approximating();
 
   target.assignment(
     true_exprt(),
@@ -908,7 +948,9 @@ void goto_symext::phi_function(
       path_storage.dirty,
       ssa,
       goto_count,
-      dest_count);
+      dest_count,
+      ls_stack,
+      dest_state.symbol_table);
   }
 
   delta_view.clear();
@@ -935,7 +977,9 @@ void goto_symext::phi_function(
       path_storage.dirty,
       ssa,
       goto_count,
-      dest_count);
+      dest_count,
+      ls_stack,
+      dest_state.symbol_table);
   }
 }
 

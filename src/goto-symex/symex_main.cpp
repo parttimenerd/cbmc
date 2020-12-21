@@ -29,6 +29,11 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <util/symbol_table.h>
 
 #include "path_storage.h"
+#include <util/format.h>
+#include <util/format_expr.h>
+#include <util/format_type.h>
+#include <util/simplify_expr.h>
+#include <util/std_types.h>
 
 symex_configt::symex_configt(const optionst &options)
   : max_depth(options.get_unsigned_int_option("depth")),

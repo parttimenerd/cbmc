@@ -218,8 +218,8 @@ void run_property_decider(
   "this is\n" \
   "                              equivalent to setting the maximum field \n" \
   "                              sensitivity size for arrays to 0\n" \
-  " --unwind nr                  unwind nr times\n" \
-  " --unwindset L:B,...          unwind loop L with a bound of B\n" \
+  " --unwind nr                  unwind nr times, has to be >= 2\n" \
+  " --unwindset L:B,...          unwind loop L with a bound of B, has to be >=2 \n" \
   "                              (use --show-loops to get the loop IDs)\n" \
   " --incremental-loop L         check properties after each unwinding\n" \
   "                              of loop L\n" \

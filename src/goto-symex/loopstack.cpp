@@ -65,9 +65,12 @@ std::vector<dstringt> loop_iteration::outer_loop_variables() const
     if(assigned_sorted.find(item.first) != assigned_sorted.end())
     {
       auto assigned_size = assigned_sorted[item.first].size();
-      for(size_t i = 0; i < item.second.size() - assigned_size; i++)
+      if(assigned_size * 2 < item.second.size())
       {
-        ret.emplace_back(item.second.at(i));
+        for(size_t i = 0; i < item.second.size() - assigned_size * 2; i++)
+        {
+          ret.emplace_back(item.second.at(i));
+        }
       }
     }
     else
@@ -88,18 +91,30 @@ std::vector<dstringt> loop_iteration::outer_loop_variables() const
 
 std::ostream &operator<<(std::ostream &os, const loop_iteration &iteration)
 {
-  os << "c loop " << iteration.id << " assigned ";
-  for(const auto &var : iteration.assigned_variables())
+  os << "c loop " << iteration.id << " assigned";
+  for(const auto &var : iteration.used_after)
   {
     os << " " << var;
   }
-  os << " | outer ";
+  os << " | outer";
   for(const auto &var : iteration.outer_loop_variables())
   {
     os << " " << var;
   }
   os << "\n";
   return os;
+}
+
+bool loop_iteration::set_iter_guard(guard_exprt &new_guard)
+{
+  if(!has_iter_guard())
+  {
+    std::cout << " new guard found " << new_guard.as_expr().to_string2()
+              << "\n";
+    guard = new_guard;
+    return true;
+  }
+  return false;
 }
 
 std::vector<dstringt>
@@ -115,4 +130,43 @@ loop_stack::variables(size_t start_scope, size_t end_scope)
     }
   }
   return ret;
+}
+
+void loop_stack::set_iter_guard(guard_exprt &guard)
+{
+  if(!iteration_stack.empty())
+  {
+    auto &last = iterations.at(iteration_stack.back());
+    if(last.set_iter_guard(guard))
+    {
+      first_guard_to_iter.emplace(guard.first_guard(), last.id);
+      last_guard_to_iter.emplace(guard.last_guard(), last.id);
+    }
+  }
+}
+
+loop_iteration *loop_stack::get_iter_for_first_guard(exprt guard_expr)
+{
+  if(first_guard_to_iter.find(guard_expr) == first_guard_to_iter.end())
+  {
+    return nullptr;
+  }
+  return &iterations.at(first_guard_to_iter.at(guard_expr));
+}
+
+loop_iteration *loop_stack::get_iter_for_last_guard(exprt guard_expr)
+{
+  if(last_guard_to_iter.find(guard_expr) == last_guard_to_iter.end())
+  {
+    return nullptr;
+  }
+  return &iterations.at(last_guard_to_iter.at(guard_expr));
+}
+
+void loop_stack::emit(std::ostream &os)
+{
+  for(const auto &iteration : iterations)
+  {
+    os << iteration;
+  }
 }
