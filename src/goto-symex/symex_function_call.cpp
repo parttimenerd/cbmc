@@ -21,6 +21,7 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <util/range.h>
 
 #include "expr_skeleton.h"
+#include "goto-programs/remove_returns.h"
 #include "path_storage.h"
 #include "symex_assign.h"
 
@@ -237,23 +238,47 @@ void goto_symext::symex_function_call_code(
     state.call_stack().top().loop_iterations[identifier].count);
 
   // see if it's too much
+
   if(stop_recursing)
   {
-    if(symex_config.partial_loops)
-    {
-      // it's ok, ignore
-    }
-    else
-    {
-      if(symex_config.unwinding_assertions)
-        vcc(false_exprt(), "recursion unwinding assertion", state);
+    ls_stack.push_aborted_recursion(identifier.c_str());
 
-      // Rule out this path:
-      symex_assume_l2(state, false_exprt());
+    framet &frame = state.call_stack().new_frame(state.source, state.guard);
+
+    // Only enable loop analysis when complexity is enabled.
+    if(symex_config.complexity_limits_active)
+    {
+      // Analyzes loops if required.
+      path_storage.add_function_loops(identifier, goto_function.body);
+      frame.loops_info = path_storage.get_loop_analysis(identifier);
     }
+
+    // preserve locality of local variables
+    locality(identifier, state, path_storage, goto_function, ns);
+
+    // assign actuals to formal parameters
+    parameter_assignments(identifier, goto_function, state, call.arguments());
+
+    symex_assume_l2(state, false_exprt());
+    if(false)
+    {
+      if(symex_config.partial_loops)
+      {
+        // it's ok, ignore
+      }
+      else
+      {
+        if(symex_config.unwinding_assertions)
+          vcc(false_exprt(), "recursion unwinding assertion", state);
+
+        // Rule out this path:
+        symex_assume_l2(state, false_exprt());
+      }
 
     symex_transition(state);
+    ls_stack.pop_aborted_recursion();
     return;
+    }
   }
 
   // read the arguments -- before the locality renaming
@@ -270,9 +295,12 @@ void goto_symext::symex_function_call_code(
   target.function_call(
     state.guard.as_expr(), identifier, renamed_arguments, state.source, hidden);
 
-  if(!goto_function.body_available())
+  if(!goto_function.body_available() || stop_recursing)
   {
-    no_body(identifier);
+    if(!goto_function.body_available())
+    {
+      no_body(identifier);
+    }
 
     // record the return
     target.function_return(
@@ -305,6 +333,10 @@ void goto_symext::symex_function_call_code(
     }
 
     symex_transition(state);
+    if(stop_recursing)
+    {
+      ls_stack.pop_aborted_recursion();
+    }
     return;
   }
 

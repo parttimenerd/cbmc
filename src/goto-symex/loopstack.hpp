@@ -95,6 +95,40 @@ struct loop_iteration
   }
 };
 
+struct aborted_recursion
+{
+  std::unordered_set<dstringt> parameters;
+  optionalt<dstringt> return_var;
+  std::string func_id;
+
+  explicit aborted_recursion(const std::string &func_id) : func_id(func_id)
+  {
+  }
+
+  bool assign_return(dstringt id)
+  {
+    std::string str = id.c_str();
+    if(
+      !return_var && str.find(func_id) == 0 &&
+      (str.rfind("::return_value") != std::string::npos ||
+       str.rfind("#return_value") != std::string::npos))
+    {
+      return_var = id;
+      return true;
+    }
+    return false;
+  }
+
+  void assign(dstringt id)
+  {
+    assert(!return_var);
+    parameters.emplace(id);
+  }
+
+  friend std::ostream &
+  operator<<(std::ostream &os, const loop_iteration &iteration);
+};
+
 class loop_stack
 {
   size_t max_loop_id = 0;
@@ -109,6 +143,11 @@ class loop_stack
 
   std::map<exprt, size_t> first_guard_to_iter{};
   std::map<exprt, size_t> last_guard_to_iter{};
+
+  std::vector<aborted_recursion> recursions;
+
+  optionalt<aborted_recursion> current_recursion;
+  bool current_recursion_waits_for_return = false;
 
 public:
   const std::vector<scope> &get_scopes()
@@ -170,7 +209,36 @@ public:
     {
       throw "empty var";
     }
-    current_scope().assign(id);
+    if(current_recursion)
+    {
+      if(current_recursion_waits_for_return)
+      {
+        current_recursion->assign_return(id);
+        current_scope().assign(id);
+        current_recursion_waits_for_return = false;
+        recursions.emplace_back(std::move(*current_recursion));
+        current_recursion = {};
+      }
+      else
+      {
+        current_recursion->assign(id);
+      }
+    }
+    else
+    {
+      current_scope().assign(id);
+    }
+  }
+
+  void push_aborted_recursion(std::string function_id)
+  {
+    assert(!current_recursion);
+    current_recursion = aborted_recursion(function_id);
+  }
+
+  void pop_aborted_recursion()
+  {
+    current_recursion_waits_for_return = true;
   }
 
   std::vector<dstringt> variables(size_t start_scope, size_t end_scope);

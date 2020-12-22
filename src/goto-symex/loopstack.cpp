@@ -3,7 +3,7 @@
 //
 
 #include "loopstack.hpp"
-#include "symex_target_equation.h"
+#include "analyses/guard_expr.h"
 #include <string_utils.h>
 
 void scope::assign(dstringt var)
@@ -117,6 +117,22 @@ bool loop_iteration::set_iter_guard(guard_exprt &new_guard)
   return false;
 }
 
+std::ostream &operator<<(std::ostream &os, const aborted_recursion &recursion)
+{
+  if(!recursion.return_var)
+  {
+    return os;
+  }
+  os << "c recursion return " << *recursion.return_var;
+  os << " | param";
+  for(const auto &var : recursion.parameters)
+  {
+    os << " " << var;
+  }
+  os << "\n";
+  return os;
+}
+
 std::vector<dstringt>
 loop_stack::variables(size_t start_scope, size_t end_scope)
 {
@@ -168,5 +184,9 @@ void loop_stack::emit(std::ostream &os)
   for(const auto &iteration : iterations)
   {
     os << iteration;
+  }
+  for(const auto &recursion : recursions)
+  {
+    os << recursion;
   }
 }

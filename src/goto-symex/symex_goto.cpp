@@ -871,33 +871,37 @@ static void merge_names(
   // negated
   if(rhs.operands().at(0).has_operands())
   {
-    auto first = to_not_expr(rhs.operands().at(0).operands().at(0)).op();
-    std::cout << new_lhs.to_string2() << " " << rhs.to_string2() << " "
-              << first.to_string2() << "\n";
-    auto iter = ls_stack.get_iter_for_last_guard(first);
-    if(iter != nullptr)
+    auto inner = rhs.operands().at(0).operands().at(0);
+    if(inner.id() == ID_not)
     {
-      std::cout << "found iter " << iter->id << " "
-                << iter->guard.value().as_expr().to_string2() << "\n";
-      auto new_var = get_fresh_aux_symbol(
-        rhs.type(),
-        "oa_unknown",
-        new_lhs.to_string2(),
-        new_lhs.source_location(),
-        symbol.mode,
-        ns,
-        symbol_table);
-      iter->add_used_after(new_lhs.get_identifier());
-      // a = phi(guard,c,d) → a = new_var
-      target.assignment(
-        true_exprt(),
-        new_lhs,
-        new_lhs,
-        new_lhs.get_original_expr(),
-        new_var.symbol_expr(),
-        dest_state.source,
-        symex_targett::assignment_typet::PHI);
-      return;
+      auto first = to_not_expr(inner).op();
+      std::cout << new_lhs.to_string2() << " " << rhs.to_string2() << " "
+                << first.to_string2() << "\n";
+      auto iter = ls_stack.get_iter_for_last_guard(first);
+      if(iter != nullptr)
+      {
+        std::cout << "found iter " << iter->id << " "
+                  << iter->guard.value().as_expr().to_string2() << "\n";
+        auto new_var = get_fresh_aux_symbol(
+          rhs.type(),
+          "oa_unknown",
+          new_lhs.to_string2(),
+          new_lhs.source_location(),
+          symbol.mode,
+          ns,
+          symbol_table);
+        iter->add_used_after(new_lhs.get_identifier());
+        // a = phi(guard,c,d) → a = new_var
+        target.assignment(
+          true_exprt(),
+          new_lhs,
+          new_lhs,
+          new_lhs.get_original_expr(),
+          new_var.symbol_expr(),
+          dest_state.source,
+          symex_targett::assignment_typet::PHI);
+        return;
+      }
     }
   }
   //to_if_expr(rhs).make_over_approximating();
