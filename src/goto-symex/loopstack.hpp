@@ -105,19 +105,7 @@ struct aborted_recursion
   {
   }
 
-  bool assign_return(dstringt id)
-  {
-    std::string str = id.c_str();
-    if(
-      !return_var && str.find(func_id) == 0 &&
-      (str.rfind("::return_value") != std::string::npos ||
-       str.rfind("#return_value") != std::string::npos))
-    {
-      return_var = id;
-      return true;
-    }
-    return false;
-  }
+  bool assign_return(dstringt id);
 
   void assign(dstringt id)
   {
@@ -203,32 +191,7 @@ public:
     push_back_scope();
   }
 
-  void assign(dstringt id)
-  {
-    if(id.empty())
-    {
-      throw "empty var";
-    }
-    if(current_recursion)
-    {
-      if(current_recursion_waits_for_return)
-      {
-        current_recursion->assign_return(id);
-        current_scope().assign(id);
-        current_recursion_waits_for_return = false;
-        recursions.emplace_back(std::move(*current_recursion));
-        current_recursion = {};
-      }
-      else
-      {
-        current_recursion->assign(id);
-      }
-    }
-    else
-    {
-      current_scope().assign(id);
-    }
-  }
+  void assign(dstringt id);
 
   void push_aborted_recursion(std::string function_id)
   {
@@ -265,6 +228,7 @@ public:
   {
     emit(std::cout);
   }
+  bool should_discard_assignments_to(const dstringt &lhs);
 };
 
 #endif //CBMC_LOOPSTACK_HPP

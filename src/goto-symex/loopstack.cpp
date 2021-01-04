@@ -105,6 +105,21 @@ std::ostream &operator<<(std::ostream &os, const loop_iteration &iteration)
   return os;
 }
 
+bool aborted_recursion::assign_return(dstringt id)
+{
+  //std::cerr << "return assigned " << id << " " << parameters.begin()->c_str() << "\n";
+  std::string str = id.c_str();
+  if(
+    !return_var && str.find(func_id) == 0 &&
+    (str.rfind("::return_value") != std::string::npos ||
+     str.rfind("#return_value") != std::string::npos))
+  {
+    return_var = id;
+    return true;
+  }
+  return false;
+}
+
 bool loop_iteration::set_iter_guard(guard_exprt &new_guard)
 {
   if(!has_iter_guard())
@@ -189,4 +204,53 @@ void loop_stack::emit(std::ostream &os)
   {
     os << recursion;
   }
+}
+
+void loop_stack::assign(dstringt id)
+{
+  if(id.empty())
+  {
+    throw "empty var";
+  }
+  bool contains_tmp =
+    std::string(id.c_str()).find("::$tmp::return_value") != std::string::npos;
+  /*std::cerr << " assign " << id;
+  if (current_recursion){
+    std::cerr << " current_recursion";
+  }
+  if (current_recursion_waits_for_return){
+    std::cerr << " cr_waits_for_return";
+  }
+  if (contains_tmp){
+    std::cerr << " contains $tmp";
+  }
+  std::cerr << "\n";*/
+  if(current_recursion)
+  {
+    if(current_recursion_waits_for_return)
+    {
+      if(contains_tmp)
+      {
+        current_recursion->assign_return(id);
+        current_scope().assign(id);
+        current_recursion_waits_for_return = false;
+        recursions.emplace_back(std::move(*current_recursion));
+        current_recursion = {};
+      }
+    }
+    else
+    {
+      current_recursion->assign(id);
+    }
+  }
+  else
+  {
+    current_scope().assign(id);
+  }
+}
+bool loop_stack::should_discard_assignments_to(const dstringt &lhs)
+{
+  return current_recursion && current_recursion_waits_for_return &&
+         std::string(lhs.c_str()).find("::$tmp::return_value") !=
+           std::string::npos;
 }
