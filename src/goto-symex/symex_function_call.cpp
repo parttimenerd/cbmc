@@ -136,7 +136,7 @@ void goto_symext::parameter_assignments(
 
       lhs = to_symbol_expr(clean_expr(std::move(lhs), state, true));
       rhs = clean_expr(std::move(rhs), state, false);
-
+      //std::cerr << "                        " << "assign parameter " << lhs.to_string2() << " = " << rhs.to_string2() << "\n";
       exprt::operandst lhs_conditions;
       symex_assignt{state, assignment_type, ns, symex_config, target}
         .assign_rec(lhs, expr_skeletont{}, rhs, lhs_conditions);
@@ -192,6 +192,8 @@ void goto_symext::symex_function_call_symbol(
 {
   code_function_callt code = original_code;
 
+  const irep_idt &identifier = to_symbol_expr(code.function()).get_identifier();
+
   if(code.lhs().is_not_nil())
     code.lhs() = clean_expr(std::move(code.lhs()), state, true);
 
@@ -203,8 +205,6 @@ void goto_symext::symex_function_call_symbol(
   target.location(state.guard.as_expr(), state.source);
 
   PRECONDITION(code.function().id() == ID_symbol);
-
-  const irep_idt &identifier = to_symbol_expr(code.function()).get_identifier();
 
   if(has_prefix(id2string(identifier), CPROVER_FKT_PREFIX))
   {

@@ -16,6 +16,7 @@ Author: Daniel Kroening, kroening@kroening.com
 #include "expr_cast.h"
 #include "invariant.h"
 #include "std_types.h"
+#include <iostream>
 
 /// An expression without operands
 class nullary_exprt : public expr_protectedt

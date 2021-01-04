@@ -58,6 +58,7 @@ boolbvt::convert_bv(const exprt &expr, optionalt<std::size_t> expected_width)
     expr.find_source_location(),
     irep_pretty_diagnosticst(expr));
 
+  cache_result.first->second = bv;
   // check
   for(const auto &literal : cache_result.first->second)
   {
@@ -69,7 +70,9 @@ boolbvt::convert_bv(const exprt &expr, optionalt<std::size_t> expected_width)
       "variable number must be different from the unused variable number",
       expr.find_source_location(),
       irep_pretty_diagnosticst(expr));
+    //std::cerr << it->dimacs() << " ";
   }
+  //std::cerr << "\n";
 
   return cache_result.first->second;
 }

@@ -54,6 +54,8 @@ bool bv_dimacst::write_dimacs(std::ostream &out)
     if(literal_map.empty())
       continue;
 
+    //if (m.first.c_str()[0] == '_')
+    //  continue;
     out << "c " << m.first;
 
     for(const auto &lit : literal_map)

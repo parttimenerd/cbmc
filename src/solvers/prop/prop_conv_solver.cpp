@@ -160,6 +160,7 @@ literalt prop_conv_solvert::convert(const exprt &expr)
     literalt literal = convert_bool(expr);
     if(freeze_all && !literal.is_constant())
       prop.set_frozen(literal);
+    //std::cerr << literal.dimacs() << "\n";
     return literal;
   }
 
@@ -167,8 +168,11 @@ literalt prop_conv_solvert::convert(const exprt &expr)
   auto result = cache.insert({expr, literalt()});
 
   if(!result.second)
+  {
+    //std::cerr << result.first->second.dimacs() << "\n";
     return result.first->second;
-
+  }
+  //std::cerr << "#### convert " << expr.to_string2() << " ";
   literalt literal = convert_bool(expr);
 
   // insert into cache
@@ -180,7 +184,7 @@ literalt prop_conv_solvert::convert(const exprt &expr)
 #if 0
   std::cout << literal << "=" << expr << '\n';
 #endif
-
+  //std::cerr << literal.dimacs() << "\n";
   return literal;
 }
 

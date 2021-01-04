@@ -122,25 +122,18 @@ void symex_target_equationt::assignment(
   assignment_typet assignment_type)
 {
   PRECONDITION(ssa_lhs.is_not_nil());
-  if(stack->should_discard_assignments_to(ssa_lhs.get_identifier()))
-  {
-    //std::cerr << "~discard " << ssa_lhs.get_identifier() << "\n";
-  }
-  if(!stack->should_discard_assignments_to(ssa_lhs.get_identifier()))
-  {
-    SSA_steps.emplace_back(SSA_assignment_stept{
-      source,
-      guard,
-      ssa_lhs,
-      ssa_full_lhs,
-      original_full_lhs,
-      ssa_rhs,
-      assignment_type});
-  }
+  SSA_steps.emplace_back(SSA_assignment_stept{
+    source,
+    guard,
+    ssa_lhs,
+    ssa_full_lhs,
+    original_full_lhs,
+    stack->should_discard_assignments_to(ssa_lhs.get_identifier()) ? ssa_lhs
+                                                                   : ssa_rhs,
+    assignment_type});
   if(stack != nullptr && !ssa_rhs.is_constant())
   {
     stack->assign(ssa_lhs.get_identifier());
-    //std::cerr << "     rhs " << ssa_rhs.to_string2() << "\n";
   }
   merge_ireps(SSA_steps.back());
 }

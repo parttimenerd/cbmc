@@ -170,7 +170,7 @@ renamedt<exprt, level>
 goto_symex_statet::rename(exprt expr, const namespacet &ns)
 {
   // rename all the symbols with their last known value
-
+  //std::cout << "      rename " << expr.to_string2() << "\n";
   static_assert(
     level == L0 || level == L1 || level == L1_WITH_CONSTANT_PROPAGATION ||
       level == L2,
@@ -196,7 +196,7 @@ goto_symex_statet::rename(exprt expr, const namespacet &ns)
       ssa = set_indices<L1>(std::move(ssa), ns).get();
       rename<level>(expr.type(), ssa.get_identifier(), ns);
       ssa.update_type();
-
+      //std::cout << "       " << __LINE__ << " " << expr.to_string2() << "\n";
       // renaming taken care of by l2_thread_encoding, or already at L2
       if(l2_thread_read_encoding(ssa, ns) || !ssa.get_level_2().empty())
       {
@@ -222,7 +222,10 @@ goto_symex_statet::rename(exprt expr, const namespacet &ns)
         else
         {
           if(level == L2)
+          {
+            //std::cout << "yep\n";
             ssa = set_indices<L2>(std::move(ssa), ns).get();
+          }
           return renamedt<exprt, level>(std::move(ssa));
         }
       }
@@ -255,8 +258,9 @@ goto_symex_statet::rename(exprt expr, const namespacet &ns)
   }
   else
   {
+    //std::cout << "   " << __LINE__ << " " << expr.to_string2() << "\n";
     rename<level>(expr.type(), irep_idt(), ns);
-
+    //std::cout << "   " << __LINE__ << " " << expr.to_string2() << "\n";
     // do this recursively
     Forall_operands(it, expr)
       *it = rename<level>(std::move(*it), ns).get();
@@ -270,7 +274,7 @@ goto_symex_statet::rename(exprt expr, const namespacet &ns)
           c_expr.type() == to_if_expr(c_expr).false_case().type())),
       "Type of renamed expr should be the same as operands for with_exprt and "
       "if_exprt");
-
+    //std::cout << "   " << __LINE__ << " " << expr.to_string2() << "\n";
     if(level == L2)
       expr = field_sensitivity.apply(ns, *this, std::move(expr), false);
 
@@ -454,6 +458,7 @@ bool goto_symex_statet::l2_thread_read_encoding(
     ssa_exprt ssa_l2 = assignment(std::move(ssa_l1), tmp, ns, true, true).get();
     record_events.pop();
 
+    //std::cout << "here is also a phi " << ssa_l2.to_string2() << "\n";
     symex_target->assignment(
       guard_as_expr,
       ssa_l2,

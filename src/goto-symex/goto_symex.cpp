@@ -41,8 +41,9 @@ void goto_symext::symex_assign(
   const exprt &o_lhs,
   const exprt &o_rhs)
 {
-  exprt lhs = clean_expr(o_lhs, state, true);
-  exprt rhs = clean_expr(o_rhs, state, false);
+  exprt lhs = clean_expr(code.lhs(), state, true);
+
+  exprt rhs = clean_expr(code.rhs(), state, false);
 
   DATA_INVARIANT(
     lhs.type() == rhs.type(), "assignments must be type consistent");
@@ -60,6 +61,8 @@ void goto_symext::symex_assign(
   lhs = state.l2_rename_rvalues(lhs, ns);
   do_simplify(lhs);
   lhs = state.field_sensitivity.apply(ns, state, std::move(lhs), true);
+  //std::cout << "   renamed " << lhs.to_string2();
+  //std::cout << ((lhs.to_string2() == "main::1::z!0@1") ? "sdfgsdfg" : "sdf") << "\n";
 
   if(rhs.id() == ID_side_effect)
   {

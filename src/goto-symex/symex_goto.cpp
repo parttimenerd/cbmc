@@ -256,6 +256,8 @@ void goto_symext::symex_goto(statet &state)
 
   target.goto_instruction(state.guard.as_expr(), renamed_guard, state.source);
 
+  //std::cout << "guard " << state.guard.as_expr().to_string2() << " new guard " << new_guard.to_string2() << "\n";
+
   ls_stack.set_iter_guard(state.guard);
 
   DATA_INVARIANT(
@@ -295,6 +297,7 @@ void goto_symext::symex_goto(statet &state)
       // almost unwind
       // start recording
       //std::cout << "push at unwind " << unwind << "\n";
+      //std::cout << " -- push\n";
       ls_stack.push_last_loop_iteration();
     }
 
@@ -324,6 +327,7 @@ void goto_symext::symex_goto(statet &state)
     //std::cout << "unwind " << unwind << "\n";
     if(should_stop_unwind(state.source, state.call_stack(), unwind))
     {
+      //std::cout << " -- pop\n";
       ls_stack.pop_last_loop_iteration();
     }
 
@@ -529,7 +533,7 @@ void goto_symext::symex_goto(statet &state)
                   << " [" << pointer_offset_bits(new_lhs.type(), ns).value_or(0) << " bits]"
                   << messaget::eom;
         });
-
+      //std::cerr << "#~#" << __LINE__ << " " << new_lhs.to_string2() << "\n";
       target.assignment(
         guard.as_expr(),
         new_lhs, new_lhs, guard_symbol_expr,
@@ -892,6 +896,7 @@ static void merge_names(
           symbol_table);
         iter->add_used_after(new_lhs.get_identifier());
         // a = phi(guard,c,d) → a = new_var
+        //std::cerr << "#~#" << __LINE__ << " " << new_lhs.to_string2() << "\n";
         target.assignment(
           true_exprt(),
           new_lhs,
@@ -905,7 +910,7 @@ static void merge_names(
     }
   }
   //to_if_expr(rhs).make_over_approximating();
-
+  //std::cerr << "#~#" << __LINE__ << " " << new_lhs.to_string2() << "\n";
   target.assignment(
     true_exprt(),
     new_lhs,

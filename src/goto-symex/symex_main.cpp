@@ -96,7 +96,6 @@ void symex_transition(
 
     // TODO: This should all be replaced by natural loop analysis.
     // This is because the way we detect loops is pretty imprecise.
-
     framet &frame = state.call_stack().top();
     const goto_programt::instructiont &instruction=*to;
     for(const auto &i_e : instruction.incoming_edges)
@@ -607,7 +606,6 @@ void goto_symext::execute_next_instruction(
 {
   PRECONDITION(!state.threads.empty());
   PRECONDITION(!state.call_stack().empty());
-
   const goto_programt::instructiont &instruction=*state.source.pc;
 
   if(!symex_config.doing_path_exploration)
@@ -620,7 +618,6 @@ void goto_symext::execute_next_instruction(
     symex_assume_l2(state, false_exprt());
   }
   state.depth++;
-
   // actually do instruction
   switch(instruction.type)
   {
@@ -651,12 +648,14 @@ void goto_symext::execute_next_instruction(
     break;
 
   case ASSUME:
+    //std::cerr << "                                           assume " << instruction.get_condition().to_string2() << "\n";
     if(state.reachable)
       symex_assume(state, instruction.get_condition());
     symex_transition(state);
     break;
 
   case ASSERT:
+    //std::cerr << "                                           assert " << instruction.get_condition().to_string2() << "\n";
     if(state.reachable && !ignore_assertions)
       symex_assert(instruction, state);
     symex_transition(state);
@@ -668,6 +667,7 @@ void goto_symext::execute_next_instruction(
     break;
 
   case ASSIGN:
+    //std::cerr << "                                           assign " << instruction.get_assign().to_string2() << "\n";
     if(state.reachable)
       symex_assign(state, instruction.assign_lhs(), instruction.assign_rhs());
 

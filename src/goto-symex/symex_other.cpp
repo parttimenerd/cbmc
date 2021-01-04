@@ -30,11 +30,12 @@ void goto_symext::havoc_rec(
     else
       lhs=if_exprt(
         guard.as_expr(), dest, exprt(ID_null_object, dest.type()));
-
-    auto rhs =
+    code_assignt assignment;
+    assignment.lhs() = lhs;
+    assignment.rhs() =
       side_effect_expr_nondett(dest.type(), state.source.pc->source_location);
 
-    symex_assign(state, lhs, rhs);
+    symex_assign(state, assignment);
   }
   else if(dest.id()==ID_byte_extract_little_endian ||
           dest.id()==ID_byte_extract_big_endian)

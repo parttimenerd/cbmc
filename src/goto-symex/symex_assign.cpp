@@ -153,6 +153,8 @@ void symex_assignt::assign_non_struct_symbol(
   const exprt &rhs,
   const exprt::operandst &guard)
 {
+  //std::cout << "    lhs " << lhs.to_string2() << " rhs " << rhs.to_string2() << "\n";
+  //std::cout << "    guard " << guard.size() << "\n";
   exprt l2_rhs =
     state
       .rename(
@@ -162,6 +164,8 @@ void symex_assignt::assign_non_struct_symbol(
           : static_cast<exprt>(if_exprt{conjunction(guard), rhs, lhs}),
         ns)
       .get();
+
+  //std::cout << "    lhs " << lhs.to_string2() << " rhs " << l2_rhs.to_string2() << "\n";
 
   assignmentt assignment{lhs, full_lhs, l2_rhs};
 
@@ -194,7 +198,6 @@ void symex_assignt::assign_non_struct_symbol(
     ns.lookup(l2_lhs.get_object_name()).is_auxiliary
       ? symex_targett::assignment_typet::HIDDEN
       : assignment_type;
-
   target.assignment(
     make_and(state.guard.as_expr(), conjunction(guard)),
     l2_lhs,
