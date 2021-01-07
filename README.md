@@ -13,6 +13,15 @@ This CBMC is modified to capture information needed for over-approximating loops
 The emitted DIMACS output on stdout should be converted into DSharpies file format via
 its convert tool.
 
+Debugging output
+----------------
+
+| environment variable | if set with any value, the following happens
+|------- | ------
+| LOG_SAT | log the names that belong to all named SAT variables
+| SKIP_CPROVER_VARIABLES | skip CProver variables (all that start with an underscore) in comments output
+| LOG_LOOP | log start and end of last loop iteration and variable assignments
+| LOG_LOOP_MERGES | log name merges on phis and more loop info
 
 About
 =====

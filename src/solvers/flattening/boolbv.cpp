@@ -24,6 +24,7 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <util/string2int.h>
 #include <util/string_constant.h>
 
+#include <iomanip>
 #include <solvers/floatbv/float_utils.h>
 
 endianness_mapt boolbvt::endianness_map(const typet &type) const
@@ -50,7 +51,7 @@ boolbvt::convert_bv(const exprt &expr, optionalt<std::size_t> expected_width)
   // Iterators into hash_maps supposedly stay stable
   // even though we are inserting more elements recursively.
 
-  cache_result.first->second = convert_bitvector(expr);
+  const bvt &bv = convert_bitvector(expr);
 
   INVARIANT_WITH_DIAGNOSTICS(
     !expected_width || cache_result.first->second.size() == *expected_width,
@@ -59,6 +60,11 @@ boolbvt::convert_bv(const exprt &expr, optionalt<std::size_t> expected_width)
     irep_pretty_diagnosticst(expr));
 
   cache_result.first->second = bv;
+  //std::cerr << expr.to_string2() << "                   ";
+  if(getenv("LOG_SAT") != nullptr)
+  {
+    std::cerr << std::setw(50) << expr.to_string2() << "  ";
+  }
   // check
   for(const auto &literal : cache_result.first->second)
   {
@@ -70,9 +76,27 @@ boolbvt::convert_bv(const exprt &expr, optionalt<std::size_t> expected_width)
       "variable number must be different from the unused variable number",
       expr.find_source_location(),
       irep_pretty_diagnosticst(expr));
-    //std::cerr << it->dimacs() << " ";
+    if(getenv("LOG_SAT") != nullptr)
+    {
+      std::cerr << std::setw(4);
+      if(literal.is_false())
+      {
+        std::cerr << "f";
+      }
+      else if(literal.is_true())
+      {
+        std::cerr << "t";
+      }
+      else
+      {
+        std::cerr << literal.dimacs();
+      }
+    }
   }
-  //std::cerr << "\n";
+  if(getenv("LOG_SAT") != nullptr)
+  {
+    std::cerr << "\n";
+  }
 
   return cache_result.first->second;
 }

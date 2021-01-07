@@ -290,9 +290,10 @@ void goto_symext::symex_goto(statet &state)
       ls_stack.push_back_loop();
     }
 
-    if(
+    bool in_last_loop_iteration =
       should_stop_unwind(state.source, state.call_stack(), unwind + 2) &&
-      !should_stop_unwind(state.source, state.call_stack(), unwind + 1))
+      !should_stop_unwind(state.source, state.call_stack(), unwind + 1);
+    if(in_last_loop_iteration)
     {
       // almost unwind
       // start recording
@@ -309,7 +310,8 @@ void goto_symext::symex_goto(statet &state)
        // while(cond);
        (instruction.incoming_edges.size() == 1 &&
         *instruction.incoming_edges.begin() == goto_target &&
-        goto_target->is_goto() && new_guard.is_true())))
+        goto_target->is_goto() && new_guard.is_true())) &&
+      !in_last_loop_iteration)
     {
       // generate assume(false) or a suitable negation if this
       // instruction is a conditional goto
@@ -871,41 +873,70 @@ static void merge_names(
               << pointer_offset_bits(new_lhs.type(), ns).value_or(0) << " bits]"
               << messaget::eom;
     });
+  bool do_log_loop = getenv("LOG_LOOP") != nullptr;
+  bool do_log_loop_merges = getenv("LOG_LOOP_MERGE") != nullptr;
   // find the phi whose first guard part is the guard of the last loop iteration
   // negated
-  if(rhs.operands().at(0).has_operands())
+  if(rhs.has_operands())
   {
-    auto inner = rhs.operands().at(0).operands().at(0);
-    if(inner.id() == ID_not)
+    if(do_log_loop_merges)
     {
-      auto first = to_not_expr(inner).op();
-      std::cout << new_lhs.to_string2() << " " << rhs.to_string2() << " "
-                << first.to_string2() << "\n";
-      auto iter = ls_stack.get_iter_for_last_guard(first);
-      if(iter != nullptr)
+      std::cerr << "merge_names " << new_lhs.to_string2() << " = "
+                << rhs.to_string2() << "\n";
+    }
+    if(rhs.id() == ID_if)
+    {
+      auto if_expr = to_if_expr(rhs);
+      auto cond = if_expr.cond();
+      if(do_log_loop_merges)
       {
-        std::cout << "found iter " << iter->id << " "
-                  << iter->guard.value().as_expr().to_string2() << "\n";
-        auto new_var = get_fresh_aux_symbol(
-          rhs.type(),
-          "oa_unknown",
-          new_lhs.to_string2(),
-          new_lhs.source_location(),
-          symbol.mode,
-          ns,
-          symbol_table);
-        iter->add_used_after(new_lhs.get_identifier());
-        // a = phi(guard,c,d) → a = new_var
-        //std::cerr << "#~#" << __LINE__ << " " << new_lhs.to_string2() << "\n";
-        target.assignment(
-          true_exprt(),
-          new_lhs,
-          new_lhs,
-          new_lhs.get_original_expr(),
-          new_var.symbol_expr(),
-          dest_state.source,
-          symex_targett::assignment_typet::PHI);
-        return;
+        std::cerr << " ~> cond " << cond.to_string2() << "\n";
+      }
+      auto first_part = cond.id() == ID_and ? cond.operands().front() : cond;
+      auto first_part_part =
+        first_part.id() == ID_not ? first_part.operands().front() : first_part;
+      if(
+        first_part_part.id() == ID_symbol ||
+        first_part_part.id() == ID_identifier)
+      {
+        if(do_log_loop_merges)
+        {
+          std::cerr << " ~> identifier " << first_part_part.to_string2()
+                    << "\n";
+        }
+        auto iter = ls_stack.get_iter_for_last_guard(first_part_part);
+        if(iter != nullptr)
+        {
+          if(do_log_loop_merges || do_log_loop)
+          {
+            std::cerr << " found iter " << iter->id << " "
+                      << iter->guard.value().as_expr().to_string2() << " "
+                      << "for " << new_lhs.to_string2() << " = "
+                      << rhs.to_string2() << "\n";
+          }
+          auto new_var =
+            get_fresh_aux_symbol( // dtodo: use this for loop invariant idea?
+              rhs.type(),
+              "oa_unknown",
+              new_lhs.to_string2(),
+              new_lhs.source_location(),
+              symbol.mode,
+              ns,
+              symbol_table);
+          iter->add_used_after(new_lhs.get_identifier());
+          ls_stack.relate({new_lhs.get_identifier(), new_var.name}, if_expr);
+          // a = phi(guard,c,d) → a = new_var
+          //std::cerr << "#~#" << __LINE__ << " " << new_lhs.to_string2() << "\n";
+          target.assignment(
+            true_exprt(),
+            new_lhs,
+            new_lhs,
+            new_lhs.get_original_expr(),
+            new_var.symbol_expr(),
+            dest_state.source,
+            symex_targett::assignment_typet::PHI);
+          return;
+        }
       }
     }
   }
@@ -1017,7 +1048,7 @@ void goto_symext::loop_bound_exceeded(
     }
 
     // generate unwinding assumption, unless we permit partial loops
-    symex_assume_l2(state, negated_cond);
+    symex_assume_l2(state, negated_cond); // dtodo: mayby remove this line?
 
     if(symex_config.unwinding_assertions)
     {

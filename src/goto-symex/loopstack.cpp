@@ -4,89 +4,44 @@
 
 #include "loopstack.hpp"
 #include "analyses/guard_expr.h"
+#include <cstring>
+#include <expr_iterator.h>
 #include <string_utils.h>
+#include <symbol.h>
+
+bool is_guard(dstringt var)
+{
+  return strstr(var.c_str(), "::\\guard#1") != nullptr;
+}
 
 void scope::assign(dstringt var)
 {
+  assert(!guard || !split_before(var));
+  if(is_guard(var))
+  {
+    guard = var;
+  }
   assigned.emplace(var);
+}
+
+bool scope::split_before(dstringt var) const
+{
+  return is_guard(var);
+}
+
+bool scope::matches_guard(dstringt guard_var) const
+{
+  return guard && guard.value() == guard_var;
 }
 
 std::vector<dstringt> loop_iteration::assigned_variables() const
 {
-  return stack->variables(start.id, end.id);
-}
-
-std::string normalize(std::string str)
-{
-  auto split = split_string(str, '@', true, true);
-  if(split.size() == 1)
-  {
-    return str;
-  }
-  auto split2 = split_string(split.at(1), '#', true, true);
-  return split.at(0);
-}
-
-std::unordered_set<std::string> normalize(std::vector<dstringt> vars)
-{
-  std::unordered_set<std::string> ret;
-  for(auto var : vars)
-  {
-    ret.emplace(normalize(var.c_str()));
-  }
-  return ret;
-}
-
-std::unordered_map<std::string, std::vector<dstringt>>
-sorted_hash(std::vector<dstringt> &vec)
-{
-  std::unordered_map<std::string, std::vector<dstringt>> ret;
-  for(auto var : vec)
-  {
-    auto split = split_string(split_string(var.c_str(), '#').at(0), '@');
-    ret[split.at(0)].emplace_back(var);
-  }
-  return ret;
+  return stack->variables(start_scope, end_scope);
 }
 
 std::vector<dstringt> loop_iteration::outer_loop_variables() const
 {
-  auto outer_vars = stack->variables(0, before_end.id);
-  auto assigned_vars = assigned_variables();
-  auto normalized_assigned = normalize(assigned_vars);
-
-  std::vector<dstringt> ret;
-
-  auto outer_sorted = sorted_hash(outer_vars);
-  auto assigned_sorted = sorted_hash(assigned_vars);
-
-  for(const auto &item : outer_sorted)
-  {
-    if(assigned_sorted.find(item.first) != assigned_sorted.end())
-    {
-      auto assigned_size = assigned_sorted[item.first].size();
-      if(assigned_size * 2 < item.second.size())
-      {
-        for(size_t i = 0; i < item.second.size() - assigned_size * 2; i++)
-        {
-          ret.emplace_back(item.second.at(i));
-        }
-      }
-    }
-    else
-    {
-      ret.insert(ret.end(), item.second.begin(), item.second.end());
-    }
-  }
-
-  /*for(auto var : outer_vars)
-  {
-    if (normalized_assigned.find(normalize(var.c_str())) == assigned_vars.end()){
-      ret.emplace_back(var);
-    }
-  }*/
-
-  return ret;
+  return stack->variables(0, adjusted_end_scope());
 }
 
 std::ostream &operator<<(std::ostream &os, const loop_iteration &iteration)
@@ -130,6 +85,39 @@ bool loop_iteration::set_iter_guard(guard_exprt &new_guard)
     return true;
   }
   return false;
+}
+
+loop_iteration::loop_iteration(
+  size_t id,
+  loop_stack *stack,
+  size_t before_end_scope,
+  size_t start_scope,
+  size_t end_scope)
+  : id(id),
+    stack(stack),
+    before_end_scope(before_end_scope),
+    start_scope(start_scope),
+    end_scope(end_scope)
+{
+}
+
+bool loop_iteration::is_first_iter_guard(dstringt var)
+{
+  return guard &&
+         to_symbol_expr(guard.value().first_guard()).get_identifier() == var;
+}
+
+size_t loop_iteration::adjusted_end_scope() const
+{
+  size_t tmp_end = this->before_end_scope;
+  auto first_loop_guard =
+    to_symbol_expr(guard.value().first_guard()).get_identifier();
+  while(tmp_end >= 0 &&
+        !stack->get_scope(tmp_end + 1).matches_guard(first_loop_guard))
+  {
+    tmp_end--;
+  }
+  return tmp_end;
 }
 
 std::ostream &operator<<(std::ostream &os, const aborted_recursion &recursion)
@@ -204,6 +192,15 @@ void loop_stack::emit(std::ostream &os)
   {
     os << recursion;
   }
+  for(const auto &relation : relations)
+  {
+    os << "c relate";
+    for(const auto &part : relation)
+    {
+      os << " " << part;
+    }
+    os << "\n";
+  }
 }
 
 void loop_stack::assign(dstringt id)
@@ -214,17 +211,16 @@ void loop_stack::assign(dstringt id)
   }
   bool contains_tmp =
     std::string(id.c_str()).find("::$tmp::return_value") != std::string::npos;
-  /*std::cerr << " assign " << id;
-  if (current_recursion){
+  if(getenv("LOG_LOOP") != nullptr)
+  {
+    std::cerr << " assign " << id << "\n";
+  }
+  /*if (current_recursion){
     std::cerr << " current_recursion";
   }
-  if (current_recursion_waits_for_return){
+  if (current_recursion_waits_for_return && contains_tmp){
     std::cerr << " cr_waits_for_return";
-  }
-  if (contains_tmp){
-    std::cerr << " contains $tmp";
-  }
-  std::cerr << "\n";*/
+  }*/
   if(current_recursion)
   {
     if(current_recursion_waits_for_return)
@@ -245,12 +241,30 @@ void loop_stack::assign(dstringt id)
   }
   else
   {
+    if(current_scope().split_before(id))
+    {
+      push_back_scope();
+    }
     current_scope().assign(id);
   }
 }
+
 bool loop_stack::should_discard_assignments_to(const dstringt &lhs)
 {
   return current_recursion && current_recursion_waits_for_return &&
          std::string(lhs.c_str()).find("::$tmp::return_value") !=
            std::string::npos;
+}
+
+void loop_stack::relate(std::vector<dstringt> symbols, exprt expr)
+{
+  std::vector<dstringt> rel = symbols;
+  for(auto it = expr.depth_begin(); it != expr.depth_end(); ++it)
+  {
+    if(it->id() == ID_symbol)
+    {
+      rel.push_back(to_symbol_expr(*it).get_identifier());
+    }
+  }
+  relations.push_back(std::move(rel));
 }

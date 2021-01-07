@@ -24,6 +24,8 @@ class symex_target_equationt;
 struct scope
 {
   size_t id;
+  /// is part of the assigned variables
+  optionalt<dstringt> guard;
   std::unordered_set<dstringt> assigned;
 
   explicit scope(size_t id) : id(id)
@@ -31,6 +33,12 @@ struct scope
   }
 
   void assign(dstringt id);
+
+  /// does assigning the passed variable lead to an incosistent state
+  /// and is it therefore necessary to create a new scope?
+  bool split_before(dstringt id) const;
+
+  bool matches_guard(dstringt guard_var) const;
 };
 
 class loop_stack;
@@ -42,11 +50,11 @@ struct loop_iteration
 
   loop_stack *stack;
 
-  scope &before_end;
+  size_t before_end_scope;
 
-  scope &start;
+  size_t start_scope;
 
-  scope &end;
+  size_t end_scope;
 
   optionalt<guard_exprt> guard;
 
@@ -57,12 +65,9 @@ struct loop_iteration
   loop_iteration(
     size_t id,
     loop_stack *stack,
-    scope &before_end,
-    scope &start,
-    scope &end)
-    : id(id), stack(stack), before_end(before_end), start(start), end(end)
-  {
-  }
+    size_t before_end_scope,
+    size_t start_scope,
+    size_t end_scope);
 
   std::vector<dstringt> assigned_variables() const;
 
@@ -83,6 +88,12 @@ struct loop_iteration
     return guard.has_value();
   }
 
+  bool is_first_iter_guard(dstringt var);
+
+  /// returns the end that omits the first loop iteration
+  /// works if the guard is already set
+  size_t adjusted_end_scope() const;
+
   exprt first_guard()
   {
     return guard.value().first_guard();
@@ -90,7 +101,11 @@ struct loop_iteration
 
   void add_used_after(dstringt var)
   {
-    std::cout << "   use after " << var << "\n";
+    if(getenv("LOG_LOOP_MERGE") != nullptr || getenv("LOG_LOOP"))
+    {
+      std::cerr << guard.value().as_expr().to_string2() << " use after " << var
+                << "\n";
+    }
     used_after.emplace(var);
   }
 };
@@ -134,6 +149,8 @@ class loop_stack
 
   std::vector<aborted_recursion> recursions;
 
+  std::vector<std::vector<dstringt>> relations;
+
   optionalt<aborted_recursion> current_recursion;
   bool current_recursion_waits_for_return = false;
 
@@ -141,6 +158,11 @@ public:
   const std::vector<scope> &get_scopes()
   {
     return scopes;
+  }
+
+  const scope &get_scope(size_t id) const
+  {
+    return scopes.at(id);
   }
 
   loop_stack()
@@ -162,7 +184,10 @@ public:
   {
     before_ends.push_back(current_scope().id);
     push_back_scope();
-    //std::cout << "start loop\n";
+    if(getenv("LOG_LOOP") != nullptr)
+    {
+      std::cerr << "start loop " << current_scope().id << "\n";
+    }
   }
 
   scope &pop_loop()
@@ -176,17 +201,23 @@ public:
   {
     push_back_scope();
     iterations.emplace_back(
-      max_loop_id, this, pop_loop(), current_scope(), current_scope());
+      max_loop_id, this, pop_loop().id, current_scope().id, current_scope().id);
     iteration_stack.push_back(max_loop_id);
     max_loop_id++;
+    if(getenv("LOG_LOOP") != nullptr)
+    {
+      std::cerr << "push last loop iteration \n";
+    }
   }
 
   void pop_last_loop_iteration()
   {
     auto &last = iterations.at(iteration_stack.back());
-    last.end = current_scope();
-    std::cout << last << "\n";
-    //std::cout << "-> pop loop\n";
+    last.end_scope = current_scope().id;
+    if(getenv("LOG_LOOP") != nullptr)
+    {
+      std::cerr << "end loop " << last.id << "\n";
+    }
     iteration_stack.pop_back();
     push_back_scope();
   }
@@ -229,6 +260,9 @@ public:
     emit(std::cout);
   }
   bool should_discard_assignments_to(const dstringt &lhs);
+
+  /// Relate the symbol to all symbols that are part of the passed expression
+  void relate(std::vector<dstringt> symbols, exprt expr);
 };
 
 #endif //CBMC_LOOPSTACK_HPP
