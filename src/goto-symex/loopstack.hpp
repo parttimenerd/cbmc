@@ -19,6 +19,23 @@ Author: Johannes Bechberger, johannes@bechberger.me
 #include <unordered_set>
 #include <vector>
 
+template <typename baset>
+class indirection
+{
+  std::vector<baset> &base;
+  size_t index;
+
+public:
+  indirection(std::vector<baset> &base, size_t index) : base(base), index(index)
+  {
+  }
+
+  baset &operator*()
+  {
+    return base.at(index);
+  }
+};
+
 class symex_target_equationt;
 
 struct scope
@@ -41,18 +58,16 @@ struct scope
   bool matches_guard(dstringt guard_var) const;
 };
 
-class loop_stack;
+class loopt;
 
 /// last loop iteration
 struct loop_iteration
 {
-  size_t id;
+  const size_t id;
 
-  loop_stack *stack;
+  loopt *loop;
 
-  size_t before_end_scope;
-
-  size_t start_scope;
+  const size_t start_scope;
 
   size_t end_scope;
 
@@ -62,12 +77,15 @@ struct loop_iteration
   /// that have versions inside the loop and are not constant
   std::unordered_set<dstringt> used_after;
 
+  /// is this the last iteration of the unrolled loop?
+  const bool is_second_to_last_iteration;
+
   loop_iteration(
     size_t id,
-    loop_stack *stack,
-    size_t before_end_scope,
+    loopt *loop,
     size_t start_scope,
-    size_t end_scope);
+    size_t end_scope,
+    bool is_last_iteration);
 
   std::vector<dstringt> assigned_variables() const;
 
@@ -90,24 +108,73 @@ struct loop_iteration
 
   bool is_first_iter_guard(dstringt var);
 
-  /// returns the end that omits the first loop iteration
-  /// works if the guard is already set
-  size_t adjusted_end_scope() const;
-
   exprt first_guard()
   {
     return guard.value().first_guard();
   }
 
-  void add_used_after(dstringt var)
+  void add_used_after(dstringt var);
+
+  bool is_last_iteration() const;
+};
+
+class loop_stackt;
+
+struct loopt
+{
+  const size_t id;
+
+  const loop_stackt *stack;
+
+  const size_t depth;
+
+  /// omit the very first iteration
+  std::vector<loop_iteration> iterations;
+
+  std::vector<guard_exprt> guards;
+
+  const size_t before_end_scope;
+
+  std::vector<std::vector<dstringt>> relations;
+
+  loopt(
+    size_t id,
+    loop_stackt *stack,
+    const size_t depth,
+    size_t before_end_scope);
+
+  /// returns the end that omits the first loop iteration
+  /// works if the guard is already set
+  size_t adjusted_end_scope() const;
+
+  loop_iteration &back()
   {
-    if(getenv("LOG_LOOP_MERGE") != nullptr || getenv("LOG_LOOP"))
-    {
-      std::cerr << guard.value().as_expr().to_string2() << " use after " << var
-                << "\n";
-    }
-    used_after.emplace(var);
+    return iterations.back();
   }
+
+  const loop_iteration &back() const
+  {
+    return iterations.back();
+  }
+
+  const scope &get_scope(size_t scope_id) const;
+
+  const loop_stackt *get_stack() const;
+
+  friend std::ostream &operator<<(std::ostream &os, const loopt &loop);
+
+  dstringt first_guard() const
+  {
+    return to_symbol_expr(guards.front().last_guard()).get_identifier();
+  }
+  void
+  push_loop(size_t end_scope_of_last, size_t end_scope, bool is_last_iteration);
+  void end_last_iteration(size_t end_scope);
+  void add_guard(guard_exprt &iter_guard);
+
+  /// Relate the symbol to all symbols that are part of the passed expression
+  void relate(std::vector<dstringt> symbols, exprt expr);
+  std::vector<dstringt> outer_loop_variables();
 };
 
 struct aborted_recursion
@@ -132,24 +199,17 @@ struct aborted_recursion
   operator<<(std::ostream &os, const loop_iteration &iteration);
 };
 
-class loop_stack
+class loop_stackt
 {
-  size_t max_loop_id = 0;
-
   std::vector<scope> scopes;
 
-  std::vector<loop_iteration> iterations;
+  std::vector<loopt> loops;
 
-  std::vector<size_t> iteration_stack;
+  std::vector<size_t> loop_stack;
 
-  std::vector<size_t> before_ends;
-
-  std::map<exprt, size_t> first_guard_to_iter{};
-  std::map<exprt, size_t> last_guard_to_iter{};
+  std::map<exprt, size_t> last_guard_to_loop{};
 
   std::vector<aborted_recursion> recursions;
-
-  std::vector<std::vector<dstringt>> relations;
 
   optionalt<aborted_recursion> current_recursion;
   bool current_recursion_waits_for_return = false;
@@ -165,7 +225,7 @@ public:
     return scopes.at(id);
   }
 
-  loop_stack()
+  loop_stackt()
   {
     push_back_scope();
   }
@@ -182,43 +242,47 @@ public:
 
   void push_back_loop()
   {
-    before_ends.push_back(current_scope().id);
+    auto before_id = current_scope().id;
     push_back_scope();
+    loops.emplace_back(loops.size(), this, loop_stack.size(), before_id);
+    loop_stack.push_back(loops.back().id);
     if(getenv("LOG_LOOP") != nullptr)
     {
-      std::cerr << "start loop " << current_scope().id << "\n";
+      std::cerr << "start loop " << current_loop().id << "\n";
     }
   }
 
-  scope &pop_loop()
+  loopt &current_loop()
   {
-    auto before_end = before_ends.back();
-    before_ends.pop_back();
-    return scopes.at(before_end);
+    return loops.at(loop_stack.back());
   }
 
-  void push_last_loop_iteration()
+  void push_loop_iteration(bool is_last_iteration)
   {
-    push_back_scope();
-    iterations.emplace_back(
-      max_loop_id, this, pop_loop().id, current_scope().id, current_scope().id);
-    iteration_stack.push_back(max_loop_id);
-    max_loop_id++;
     if(getenv("LOG_LOOP") != nullptr)
     {
-      std::cerr << "push last loop iteration \n";
+      std::cerr << "push iteration " << (current_loop().iterations.size() + 1)
+                << " of loop " << current_loop().id;
+      if(is_last_iteration)
+      {
+        std::cerr << " last iteration";
+      }
+      std::cerr << "\n";
     }
+    push_back_scope();
+    current_loop().push_loop(
+      current_scope().id - 1, current_scope().id, is_last_iteration);
   }
 
   void pop_last_loop_iteration()
   {
-    auto &last = iterations.at(iteration_stack.back());
-    last.end_scope = current_scope().id;
+    auto &last = current_loop();
+    last.end_last_iteration(current_scope().id);
     if(getenv("LOG_LOOP") != nullptr)
     {
-      std::cerr << "end loop " << last.id << "\n";
+      std::cerr << "end loop " << current_loop().id << "\n";
     }
-    iteration_stack.pop_back();
+    loop_stack.pop_back();
     push_back_scope();
   }
 
@@ -235,7 +299,7 @@ public:
     current_recursion_waits_for_return = true;
   }
 
-  std::vector<dstringt> variables(size_t start_scope, size_t end_scope);
+  std::vector<dstringt> variables(size_t start_scope, size_t end_scope) const;
 
   /// Set the guard of the last loop iteration that is currently on top
   /// if it does not yet have a loop iteration
@@ -244,25 +308,17 @@ public:
   void set_iter_guard(guard_exprt &guard);
 
   /// Returns the last loop iteration for a given guard expr (must match
-  /// the first guard of a loop iteration)
-  /// \return nullptr if no loop iteration found
-  loop_iteration *get_iter_for_first_guard(exprt guard_expr);
-
-  /// Returns the last loop iteration for a given guard expr (must match
   /// the last guard of a loop iteration)
   /// \return nullptr if no loop iteration found
-  loop_iteration *get_iter_for_last_guard(exprt guard_expr);
+  loopt *get_iter_for_last_guard(exprt guard_expr);
 
   void emit(std::ostream &os);
 
-  ~loop_stack()
+  ~loop_stackt()
   {
     emit(std::cout);
   }
   bool should_discard_assignments_to(const dstringt &lhs);
-
-  /// Relate the symbol to all symbols that are part of the passed expression
-  void relate(std::vector<dstringt> symbols, exprt expr);
 };
 
 #endif //CBMC_LOOPSTACK_HPP

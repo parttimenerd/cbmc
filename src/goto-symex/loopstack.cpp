@@ -36,23 +36,18 @@ bool scope::matches_guard(dstringt guard_var) const
 
 std::vector<dstringt> loop_iteration::assigned_variables() const
 {
-  return stack->variables(start_scope, end_scope);
-}
-
-std::vector<dstringt> loop_iteration::outer_loop_variables() const
-{
-  return stack->variables(0, adjusted_end_scope());
+  return loop->get_stack()->variables(start_scope, end_scope);
 }
 
 std::ostream &operator<<(std::ostream &os, const loop_iteration &iteration)
 {
-  os << "c loop " << iteration.id << " assigned";
+  os << "c loop " << iteration.loop->id << " assigned";
   for(const auto &var : iteration.used_after)
   {
     os << " " << var;
   }
   os << " | outer";
-  for(const auto &var : iteration.outer_loop_variables())
+  for(const auto &var : iteration.loop->outer_loop_variables())
   {
     os << " " << var;
   }
@@ -89,15 +84,15 @@ bool loop_iteration::set_iter_guard(guard_exprt &new_guard)
 
 loop_iteration::loop_iteration(
   size_t id,
-  loop_stack *stack,
-  size_t before_end_scope,
+  loopt *loop,
   size_t start_scope,
-  size_t end_scope)
+  size_t end_scope,
+  const bool is_last_iteration)
   : id(id),
-    stack(stack),
-    before_end_scope(before_end_scope),
+    loop(loop),
     start_scope(start_scope),
-    end_scope(end_scope)
+    end_scope(end_scope),
+    is_second_to_last_iteration(is_last_iteration)
 {
 }
 
@@ -107,17 +102,108 @@ bool loop_iteration::is_first_iter_guard(dstringt var)
          to_symbol_expr(guard.value().first_guard()).get_identifier() == var;
 }
 
-size_t loop_iteration::adjusted_end_scope() const
+void loop_iteration::add_used_after(dstringt var)
+{
+  if(getenv("LOG_LOOP_MERGE") != nullptr || getenv("LOG_LOOP"))
+  {
+    std::cerr << "loop" << loop->id << " " << id << " use after " << var
+              << "\n";
+  }
+  used_after.emplace(var);
+}
+
+bool loop_iteration::is_last_iteration() const
+{
+  return loop->iterations.size() > 1 && id > 0 &&
+         loop->iterations.at(id - 1).is_second_to_last_iteration;
+}
+
+size_t loopt::adjusted_end_scope() const
 {
   size_t tmp_end = this->before_end_scope;
-  auto first_loop_guard =
-    to_symbol_expr(guard.value().first_guard()).get_identifier();
+  auto first_loop_guard = first_guard();
   while(tmp_end >= 0 &&
         !stack->get_scope(tmp_end + 1).matches_guard(first_loop_guard))
   {
     tmp_end--;
   }
   return tmp_end;
+}
+
+const scope &loopt::get_scope(size_t scope_id) const
+{
+  return stack->get_scope(id);
+}
+
+const loop_stackt *loopt::get_stack() const
+{
+  return stack;
+}
+
+std::ostream &operator<<(std::ostream &os, const loopt &loop)
+{
+  for(const auto &relation : loop.relations)
+  {
+    os << "c relate";
+    for(const auto &part : relation)
+    {
+      os << " " << part;
+    }
+    os << "\n";
+  }
+  return os << loop.back();
+}
+
+loopt::loopt(
+  size_t id,
+  loop_stackt *stack,
+  const size_t depth,
+  size_t before_end_scope)
+  : id(id), stack(stack), depth(depth), before_end_scope(before_end_scope)
+{
+}
+
+void loopt::push_loop(
+  size_t end_scope_of_last,
+  size_t start_scope,
+  bool is_last_iteration)
+{
+  if(!iterations.empty())
+  {
+    assert(iterations.back().end_scope == 0);
+    iterations.back().end_scope = end_scope_of_last;
+  }
+  iterations.push_back(
+    loop_iteration(iterations.size(), this, start_scope, 0, is_last_iteration));
+}
+
+void loopt::end_last_iteration(size_t end_scope)
+{
+  assert(iterations.back().end_scope == 0);
+  iterations.back().end_scope = end_scope;
+}
+
+void loopt::add_guard(guard_exprt &iter_guard)
+{
+  guards.push_back(iter_guard);
+}
+
+void loopt::relate(std::vector<dstringt> symbols, exprt expr)
+{
+  std::vector<dstringt> rel = symbols;
+  for(auto it = expr.depth_begin(); it != expr.depth_end(); ++it)
+  {
+    if(it->id() == ID_symbol)
+    {
+      rel.push_back(to_symbol_expr(*it).get_identifier());
+    }
+  }
+  relations.push_back(std::move(rel));
+}
+
+std::vector<dstringt> loopt::outer_loop_variables()
+{
+  return stack->variables(0, adjusted_end_scope());
 }
 
 std::ostream &operator<<(std::ostream &os, const aborted_recursion &recursion)
@@ -137,7 +223,7 @@ std::ostream &operator<<(std::ostream &os, const aborted_recursion &recursion)
 }
 
 std::vector<dstringt>
-loop_stack::variables(size_t start_scope, size_t end_scope)
+loop_stackt::variables(size_t start_scope, size_t end_scope) const
 {
   std::vector<dstringt> ret;
   for(size_t i = start_scope; i <= end_scope; i++)
@@ -151,59 +237,42 @@ loop_stack::variables(size_t start_scope, size_t end_scope)
   return ret;
 }
 
-void loop_stack::set_iter_guard(guard_exprt &guard)
+void loop_stackt::set_iter_guard(guard_exprt &guard)
 {
-  if(!iteration_stack.empty())
+  if(!loop_stack.empty())
   {
-    auto &last = iterations.at(iteration_stack.back());
-    if(last.set_iter_guard(guard))
+    auto &last = current_loop();
+    if(!guard.is_true() && !guard.is_false())
     {
-      first_guard_to_iter.emplace(guard.first_guard(), last.id);
-      last_guard_to_iter.emplace(guard.last_guard(), last.id);
+      //std::cerr << "# set iter guard " << guard.as_expr().to_string2() << " to loop " << last.id << "\n";
+      last.add_guard(guard);
+      last_guard_to_loop.emplace(guard.last_guard(), last.id);
     }
   }
 }
 
-loop_iteration *loop_stack::get_iter_for_first_guard(exprt guard_expr)
+loopt *loop_stackt::get_iter_for_last_guard(exprt guard_expr)
 {
-  if(first_guard_to_iter.find(guard_expr) == first_guard_to_iter.end())
+  if(last_guard_to_loop.find(guard_expr) == last_guard_to_loop.end())
   {
     return nullptr;
   }
-  return &iterations.at(first_guard_to_iter.at(guard_expr));
+  return &loops.at(last_guard_to_loop.at(guard_expr));
 }
 
-loop_iteration *loop_stack::get_iter_for_last_guard(exprt guard_expr)
+void loop_stackt::emit(std::ostream &os)
 {
-  if(last_guard_to_iter.find(guard_expr) == last_guard_to_iter.end())
+  for(const auto &loop : loops)
   {
-    return nullptr;
-  }
-  return &iterations.at(last_guard_to_iter.at(guard_expr));
-}
-
-void loop_stack::emit(std::ostream &os)
-{
-  for(const auto &iteration : iterations)
-  {
-    os << iteration;
+    os << loop;
   }
   for(const auto &recursion : recursions)
   {
     os << recursion;
   }
-  for(const auto &relation : relations)
-  {
-    os << "c relate";
-    for(const auto &part : relation)
-    {
-      os << " " << part;
-    }
-    os << "\n";
-  }
 }
 
-void loop_stack::assign(dstringt id)
+void loop_stackt::assign(dstringt id)
 {
   if(id.empty())
   {
@@ -249,22 +318,9 @@ void loop_stack::assign(dstringt id)
   }
 }
 
-bool loop_stack::should_discard_assignments_to(const dstringt &lhs)
+bool loop_stackt::should_discard_assignments_to(const dstringt &lhs)
 {
   return current_recursion && current_recursion_waits_for_return &&
          std::string(lhs.c_str()).find("::$tmp::return_value") !=
            std::string::npos;
-}
-
-void loop_stack::relate(std::vector<dstringt> symbols, exprt expr)
-{
-  std::vector<dstringt> rel = symbols;
-  for(auto it = expr.depth_begin(); it != expr.depth_end(); ++it)
-  {
-    if(it->id() == ID_symbol)
-    {
-      rel.push_back(to_symbol_expr(*it).get_identifier());
-    }
-  }
-  relations.push_back(std::move(rel));
 }

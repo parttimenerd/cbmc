@@ -667,7 +667,11 @@ void goto_symext::execute_next_instruction(
     break;
 
   case ASSIGN:
-    //std::cerr << "                                           assign " << instruction.get_assign().to_string2() << "\n";
+    if(getenv("LOG_ASSIGN"))
+    {
+      std::cerr << "                                           assign "
+                << instruction.get_assign().to_string2() << "\n";
+    }
     if(state.reachable)
       symex_assign(state, instruction.assign_lhs(), instruction.assign_rhs());
 

@@ -293,14 +293,7 @@ void goto_symext::symex_goto(statet &state)
     bool in_last_loop_iteration =
       should_stop_unwind(state.source, state.call_stack(), unwind + 2) &&
       !should_stop_unwind(state.source, state.call_stack(), unwind + 1);
-    if(in_last_loop_iteration)
-    {
-      // almost unwind
-      // start recording
-      //std::cout << "push at unwind " << unwind << "\n";
-      //std::cout << " -- push\n";
-      ls_stack.push_last_loop_iteration();
-    }
+    ls_stack.push_loop_iteration(in_last_loop_iteration);
 
     // is it label: goto label; or while(cond); - popular in SV-COMP
     if(
@@ -310,8 +303,7 @@ void goto_symext::symex_goto(statet &state)
        // while(cond);
        (instruction.incoming_edges.size() == 1 &&
         *instruction.incoming_edges.begin() == goto_target &&
-        goto_target->is_goto() && new_guard.is_true())) &&
-      !in_last_loop_iteration)
+        goto_target->is_goto() && new_guard.is_true())))
     {
       // generate assume(false) or a suitable negation if this
       // instruction is a conditional goto
@@ -774,7 +766,7 @@ static void merge_names(
   const ssa_exprt &ssa,
   const unsigned goto_count,
   const unsigned dest_count,
-  loop_stack &ls_stack,
+  loop_stackt &ls_stack,
   symbol_tablet &symbol_table)
 {
   const irep_idt l1_identifier = ssa.get_identifier();
@@ -904,13 +896,16 @@ static void merge_names(
           std::cerr << " ~> identifier " << first_part_part.to_string2()
                     << "\n";
         }
-        auto iter = ls_stack.get_iter_for_last_guard(first_part_part);
-        if(iter != nullptr)
+        auto loop = ls_stack.get_iter_for_last_guard(first_part_part);
+        if(
+          loop != nullptr && loop->back().is_last_iteration() &&
+          loop->guards.back().first_guard() == first_part_part)
         {
+          auto &iter = loop->back();
           if(do_log_loop_merges || do_log_loop)
           {
-            std::cerr << " found iter " << iter->id << " "
-                      << iter->guard.value().as_expr().to_string2() << " "
+            std::cerr << " found loop " << loop->id << " "
+                      << loop->first_guard() << " "
                       << "for " << new_lhs.to_string2() << " = "
                       << rhs.to_string2() << "\n";
           }
@@ -923,8 +918,8 @@ static void merge_names(
               symbol.mode,
               ns,
               symbol_table);
-          iter->add_used_after(new_lhs.get_identifier());
-          ls_stack.relate({new_lhs.get_identifier(), new_var.name}, if_expr);
+          iter.add_used_after(new_lhs.get_identifier());
+          loop->relate({new_lhs.get_identifier(), new_var.name}, if_expr);
           // a = phi(guard,c,d) → a = new_var
           //std::cerr << "#~#" << __LINE__ << " " << new_lhs.to_string2() << "\n";
           target.assignment(

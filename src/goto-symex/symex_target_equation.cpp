@@ -134,6 +134,11 @@ void symex_target_equationt::assignment(
   if(stack != nullptr && !ssa_rhs.is_constant())
   {
     stack->assign(ssa_lhs.get_identifier());
+    if(getenv("LOG_ASSIGN"))
+    {
+      std::cerr << "             assign " << ssa_lhs.get_identifier() << " = "
+                << SSA_steps.back().ssa_rhs.to_string2() << "\n";
+    }
   }
   merge_ireps(SSA_steps.back());
 }

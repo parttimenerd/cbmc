@@ -222,7 +222,7 @@ protected:
   messaget::mstreamt &
   print_callstack_entry(const symex_targett::sourcet &target);
 
-  loop_stack ls_stack;
+  loop_stackt ls_stack;
 
 public:
 
