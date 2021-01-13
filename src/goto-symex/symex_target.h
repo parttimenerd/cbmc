@@ -17,6 +17,9 @@ Author: Daniel Kroening, kroening@kroening.com
 #include "renamed.h"
 
 class ssa_exprt;
+class symbol_exprt;
+class namespacet;
+class loop_stackt;
 
 /// The interface of the target _container_ for symbolic execution to record its
 /// symbolic steps into. Presently, \ref symex_target_equationt is the only
@@ -29,6 +32,11 @@ public:
   }
 
   virtual ~symex_targett() { }
+
+  virtual loop_stackt *get_loop_stack()
+  {
+    return nullptr;
+  }
 
   /// Identifies source in the context of symbolic execution. Thread number
   /// `thread_nr` is zero by default and the program counter `pc` points to the

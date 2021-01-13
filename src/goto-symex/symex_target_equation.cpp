@@ -122,23 +122,39 @@ void symex_target_equationt::assignment(
   assignment_typet assignment_type)
 {
   PRECONDITION(ssa_lhs.is_not_nil());
+  assert(stack);
+  auto discard = stack->should_discard_assignments_to(ssa_lhs.get_identifier());
+  auto in_sli =
+    stack->is_in_loop() && stack->current_loop().in_second_to_last_iteration();
   SSA_steps.emplace_back(SSA_assignment_stept{
     source,
     guard,
     ssa_lhs,
     ssa_full_lhs,
     original_full_lhs,
-    stack->should_discard_assignments_to(ssa_lhs.get_identifier()) ? ssa_lhs
-                                                                   : ssa_rhs,
+    discard ? ssa_lhs : ssa_rhs,
     assignment_type});
-  if(stack != nullptr && !ssa_rhs.is_constant())
+  if(getenv("LOG_ASSIGN"))
+  {
+    std::cerr << "             assign " << ssa_lhs.get_identifier() << " = "
+              << ssa_rhs.to_string2();
+    if(ssa_rhs.is_constant())
+    {
+      std::cerr << " constant";
+    }
+    if(discard)
+    {
+      std::cerr << " discard";
+    }
+    if(in_sli)
+    {
+      std::cerr << " sli";
+    }
+    std::cerr << "\n";
+  }
+  if(!ssa_rhs.is_constant() || in_sli)
   {
     stack->assign(ssa_lhs.get_identifier());
-    if(getenv("LOG_ASSIGN"))
-    {
-      std::cerr << "             assign " << ssa_lhs.get_identifier() << " = "
-                << SSA_steps.back().ssa_rhs.to_string2() << "\n";
-    }
   }
   merge_ireps(SSA_steps.back());
 }

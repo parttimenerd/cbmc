@@ -22,9 +22,9 @@ void unwindsett::parse_unwind(const std::string &unwind)
   if(!unwind.empty())
   {
     global_limit = unsafe_string2unsigned(unwind);
-    if(global_limit.value() < 2)
+    if(global_limit.value() < 3)
     {
-      throw "unwind has to be >= 2 or unset";
+      throw "unwind has to be >= 3 or unset";
     }
   }
 }
@@ -55,9 +55,9 @@ void unwindsett::parse_unwindset_one_loop(std::string val)
     else
     {
       uw = unsafe_string2unsigned(uw_string);
-      if(uw.value() < 2)
+      if(uw.value() < 3)
       {
-        throw "unwind has to be >= 2 or unset for all loops";
+        throw "unwind has to be >= 3 or unset for all loops";
       }
     }
     if(thread_nr_set)

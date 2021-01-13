@@ -49,6 +49,12 @@ public:
     this->stack = new_stack;
   }
 
+  loop_stackt *get_loop_stack()
+  {
+    assert(stack != nullptr);
+    return stack;
+  }
+
   virtual ~symex_target_equationt() = default;
 
   /// \copydoc symex_targett::shared_read()

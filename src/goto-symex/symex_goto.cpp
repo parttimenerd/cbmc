@@ -281,19 +281,20 @@ void goto_symext::symex_goto(statet &state)
 
     if(
       instruction.is_backwards_goto() &&
-      state.call_stack()
-          .top()
-          .loop_iterations[goto_programt::loop_id(
-            state.source.function_id, *state.source.pc)]
-          .count == 0)
+      state.call_stack().top().loop_iterations[loop_id].count == 0)
     {
-      ls_stack.push_back_loop();
+      ls_stack.push_back_loop(
+        state.call_stack().top().function_identifier, instruction.loop_number);
     }
 
     bool in_last_loop_iteration =
       should_stop_unwind(state.source, state.call_stack(), unwind + 2) &&
       !should_stop_unwind(state.source, state.call_stack(), unwind + 1);
-    ls_stack.push_loop_iteration(in_last_loop_iteration);
+    bool in_second_to_last_loop_iteration =
+      !in_last_loop_iteration &&
+      should_stop_unwind(state.source, state.call_stack(), unwind + 3);
+    ls_stack.push_loop_iteration(
+      in_second_to_last_loop_iteration, in_last_loop_iteration);
 
     // is it label: goto label; or while(cond); - popular in SV-COMP
     if(
@@ -322,7 +323,7 @@ void goto_symext::symex_goto(statet &state)
     if(should_stop_unwind(state.source, state.call_stack(), unwind))
     {
       //std::cout << " -- pop\n";
-      ls_stack.pop_last_loop_iteration();
+      ls_stack.end_current_loop();
     }
 
     if(should_stop_unwind(state.source, state.call_stack(), unwind))
@@ -869,12 +870,17 @@ static void merge_names(
   bool do_log_loop_merges = getenv("LOG_LOOP_MERGE") != nullptr;
   // find the phi whose first guard part is the guard of the last loop iteration
   // negated
+  if(do_log_loop_merges)
+  {
+    std::cerr << "merge_names " << new_lhs.to_string2() << " = "
+              << rhs.to_string2() << "\n";
+  }
   if(rhs.has_operands())
   {
     if(do_log_loop_merges)
     {
-      std::cerr << "merge_names " << new_lhs.to_string2() << " = "
-                << rhs.to_string2() << "\n";
+      std::cerr << "merge_names and has operands" << new_lhs.to_string2()
+                << " = " << rhs.to_string2() << "\n";
     }
     if(rhs.id() == ID_if)
     {
@@ -884,9 +890,9 @@ static void merge_names(
       {
         std::cerr << " ~> cond " << cond.to_string2() << "\n";
       }
-      auto first_part = cond.id() == ID_and ? cond.operands().front() : cond;
+      auto first_part = cond.id() == ID_and ? cond.operands().back() : cond;
       auto first_part_part =
-        first_part.id() == ID_not ? first_part.operands().front() : first_part;
+        first_part.id() == ID_not ? first_part.operands().back() : first_part;
       if(
         first_part_part.id() == ID_symbol ||
         first_part_part.id() == ID_identifier)
@@ -896,16 +902,16 @@ static void merge_names(
           std::cerr << " ~> identifier " << first_part_part.to_string2()
                     << "\n";
         }
-        auto loop = ls_stack.get_iter_for_last_guard(first_part_part);
-        if(
-          loop != nullptr && loop->back().is_last_iteration() &&
-          loop->guards.back().first_guard() == first_part_part)
+        auto loop = ls_stack.get_loop_for_guard_symbol(first_part_part);
+        if(loop != nullptr && loop->in_last_iteration())
         {
-          auto &iter = loop->back();
           if(do_log_loop_merges || do_log_loop)
           {
             std::cerr << " found loop " << loop->id << " "
-                      << loop->first_guard() << " "
+                      << (loop->first_guard().has_value()
+                            ? loop->first_guard().value()
+                            : "no guard")
+                      << " "
                       << "for " << new_lhs.to_string2() << " = "
                       << rhs.to_string2() << "\n";
           }
@@ -918,8 +924,8 @@ static void merge_names(
               symbol.mode,
               ns,
               symbol_table);
-          iter.add_used_after(new_lhs.get_identifier());
-          loop->relate({new_lhs.get_identifier(), new_var.name}, if_expr);
+          loop->add_used_after(new_lhs.get_identifier());
+          //loop->relate({new_lhs.get_identifier(), new_var.name}, if_expr);
           // a = phi(guard,c,d) → a = new_var
           //std::cerr << "#~#" << __LINE__ << " " << new_lhs.to_string2() << "\n";
           target.assignment(
@@ -931,6 +937,20 @@ static void merge_names(
             dest_state.source,
             symex_targett::assignment_typet::PHI);
           return;
+        }
+        else if(do_log_loop_merges)
+        {
+          std::cerr << " ~> cannot find loop or loop does not match, possible "
+                       "loops with their guards are \n";
+          for(const auto &loop : ls_stack.get_loops())
+          {
+            std::cerr << "    loop " << loop.id;
+            for(const auto &guard : loop.guards)
+            {
+              std::cerr << " " << guard.as_expr().to_string2();
+            }
+            std::cerr << "\n";
+          }
         }
       }
     }
@@ -971,7 +991,6 @@ void goto_symext::phi_function(
     unsigned dest_count = !delta_item.is_in_both_maps()
                             ? 0
                             : delta_item.get_other_map_value().second;
-
     merge_names(
       goto_state,
       dest_state,

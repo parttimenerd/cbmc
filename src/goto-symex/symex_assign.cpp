@@ -198,6 +198,7 @@ void symex_assignt::assign_non_struct_symbol(
     ns.lookup(l2_lhs.get_object_name()).is_auxiliary
       ? symex_targett::assignment_typet::HIDDEN
       : assignment_type;
+
   target.assignment(
     make_and(state.guard.as_expr(), conjunction(guard)),
     l2_lhs,
@@ -208,6 +209,15 @@ void symex_assignt::assign_non_struct_symbol(
     current_assignment_type);
 
   const ssa_exprt &l1_lhs = assignment.lhs;
+
+  if(
+    target.get_loop_stack() != nullptr &&
+    target.get_loop_stack()->should_discard_assignments_to(
+      l2_lhs.get_identifier()))
+  {
+    //std::cerr << "# ignored " << state.propagation.find(l1_lhs.get_identifier()).value().get().to_string2() << "\n";
+    state.propagation.erase_if_exists(l1_lhs.get_identifier());
+  }
   if(state.field_sensitivity.is_divisible(l1_lhs))
   {
     // Split composite symbol lhs into its components

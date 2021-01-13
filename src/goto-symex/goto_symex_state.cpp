@@ -468,6 +468,7 @@ bool goto_symex_statet::l2_thread_read_encoding(
       source,
       symex_targett::assignment_typet::PHI);
 
+    // dtodo: remove assignment here?
     INVARIANT(!check_renaming(ssa_l2), "expr should be renamed to L2");
     expr = std::move(ssa_l2);
 
