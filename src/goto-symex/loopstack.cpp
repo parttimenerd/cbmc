@@ -235,9 +235,10 @@ std::ostream &operator<<(std::ostream &os, const loopt &loop)
   os << " | guards ";
   if(!loop.guards.empty())
   {
-    for(const auto &var : get_guard_variables(loop.guards.back()))
+    auto vars = get_guard_variables(loop.guards.back());
+    for(auto it = vars.begin(); it != vars.end() - 1; it++)
     {
-      os << " " << (std::get<1>(var) ? "" : "-") << std::get<0>(var);
+      os << " " << (std::get<1>(*it) ? "" : "-") << std::get<0>(*it);
     }
   }
   os << " | lguard ";

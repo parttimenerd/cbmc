@@ -245,7 +245,8 @@ void goto_symext::symex_function_call_code(
   {
     std::cerr << "------------------ call of function " << identifier
               << "  stop_unwinding = " << stop_recursing
-              << " pc = " << state.source.pc->to_string() << " count "
+              << " pc = " << state.source.pc->source_location.as_string()
+              << " count "
               << state.call_stack().top().loop_iterations[identifier].count
               << "\n";
   }
@@ -256,6 +257,22 @@ void goto_symext::symex_function_call_code(
     framet &frame = state.call_stack().new_frame(state.source, state.guard);
     // preserve locality of local variables
     locality(identifier, state, path_storage, goto_function, ns);
+
+    frame.end_of_function = --goto_function.body.instructions.end();
+    frame.return_value = call.lhs();
+    frame.function_identifier = identifier;
+    frame.hidden_function = goto_function.is_hidden();
+
+    const framet &p_frame = state.call_stack().previous_frame();
+    for(const auto &pair : p_frame.loop_iterations)
+    {
+      if(pair.second.is_recursion)
+        frame.loop_iterations.insert(pair);
+    }
+
+    // increase unwinding counter
+    frame.loop_iterations[identifier].is_recursion = true;
+    frame.loop_iterations[identifier].count++;
 
     ls_stack.push_aborted_recursion(
       identifier.c_str(), state, [&](dstringt var) {
@@ -268,7 +285,7 @@ void goto_symext::symex_function_call_code(
     {
       // Analyzes loops if required.
       path_storage.add_function_loops(identifier, goto_function.body);
-      frame.loops_info = path_storage.get_loop_analysis(identifier);
+      //frame.loops_info = path_storage.get_loop_analysis(identifier);
     }
 
     auto argument_call_back = [&](dstringt argument) {
