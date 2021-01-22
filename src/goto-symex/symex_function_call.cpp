@@ -141,9 +141,11 @@ void goto_symext::parameter_assignments(
       exprt::operandst lhs_conditions;
       symex_assignt{state, assignment_type, ns, symex_config, target}
         .assign_rec(lhs, expr_skeletont{}, rhs, lhs_conditions);
-      argument_call_back(
-        to_symbol_expr(state.rename(symbol.symbol_expr(), ns).get())
-          .get_identifier());
+      auto renamed = state.rename(symbol.symbol_expr(), ns).get();
+      if(!renamed.is_constant())
+      {
+        argument_call_back(to_symbol_expr(renamed).get_identifier());
+      }
     }
 
     if(it1!=arguments.end())
