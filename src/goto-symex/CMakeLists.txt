@@ -1,5 +1,5 @@
 file(GLOB_RECURSE sources "*.cpp" "*.h")
-add_library(goto-symex ${sources} loopstack.cpp loopstack.hpp)
+add_library(goto-symex ${sources})
 
 generic_includes(goto-symex)
 

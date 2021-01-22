@@ -77,7 +77,9 @@ operator()(propertiest &properties)
   if(!initial_equation_generated)
   {
     full_equation_generated = !symex.from_entry_point_of(
-      goto_symext::get_goto_function(goto_model), symex_symbol_table);
+      goto_model.get_goto_functions(),
+      goto_symext::get_goto_function(goto_model),
+      symex_symbol_table);
 
     // This might add new properties such as unwinding assertions, for instance.
     update_properties_status_from_symex_target_equation(
@@ -174,8 +176,9 @@ operator()(propertiest &properties)
     output_incremental_status(properties, log);
 
     // We continue symbolic execution
-    full_equation_generated =
-      !symex.resume(goto_symext::get_goto_function(goto_model));
+    full_equation_generated = !symex.resume(
+      goto_model.get_goto_functions(),
+      goto_symext::get_goto_function(goto_model));
     revert_slice(equation);
 
     // This might add new properties such as unwinding assertions, for instance.

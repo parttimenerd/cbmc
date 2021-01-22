@@ -119,22 +119,24 @@ bool symex_bmc_incremental_one_loopt::check_break(
 }
 
 bool symex_bmc_incremental_one_loopt::from_entry_point_of(
+  const goto_functionst &functions,
   const get_goto_functiont &get_goto_function,
   symbol_tablet &new_symbol_table)
 {
   state = initialize_entry_point_state(get_goto_function);
 
-  symex_with_state(*state, get_goto_function, new_symbol_table);
+  symex_with_state(*state, functions, get_goto_function, new_symbol_table);
 
   return should_pause_symex;
 }
 
 bool symex_bmc_incremental_one_loopt::resume(
+  const goto_functionst &functions,
   const get_goto_functiont &get_goto_function)
 {
   should_pause_symex = false;
 
-  symex_with_state(*state, get_goto_function, state->symbol_table);
+  symex_with_state(*state, functions, get_goto_function, state->symbol_table);
 
   return should_pause_symex;
 }

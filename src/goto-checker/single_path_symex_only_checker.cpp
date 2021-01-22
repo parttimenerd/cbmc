@@ -99,6 +99,7 @@ bool single_path_symex_only_checkert::resume_path(path_storaget::patht &path)
   setup_symex(symex);
 
   symex.resume_symex_from_saved_state(
+    goto_model.get_goto_functions(),
     goto_symext::get_goto_function(goto_model),
     path.state,
     &path.equation,

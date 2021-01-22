@@ -13,11 +13,14 @@ Author: Johannes Bechberger, johannes@bechberger.me
 #define CBMC_LOOPSTACK_HPP
 
 #include "analyses/guard_expr.h"
+#include "goto_symex_state.h"
+#include "ls_info.h"
 #include <expr.h>
 #include <iostream>
 #include <map>
 #include <set>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 template <typename baset>
@@ -134,6 +137,7 @@ struct scope
   optionalt<dstringt> guard;
   std::unordered_set<dstringt> assigned;
   variablest variables;
+  std::unordered_set<dstringt> read_variables;
 
   explicit scope(size_t id) : id(id)
   {
@@ -141,7 +145,9 @@ struct scope
 
   void assign(dstringt id);
 
-  /// does assigning the passed variable lead to an incosistent state
+  void read(dstringt id);
+
+  /// does assigning the passed variable lead to an inconsistent state
   /// and is it therefore necessary to create a new scope?
   bool split_before(dstringt id) const;
 
@@ -200,6 +206,10 @@ struct parent_idt
   friend std::ostream &operator<<(std::ostream &os, const parent_idt &idt);
 };
 
+/// returns [(guard_var, value it is assumed to have)]
+std::vector<std::tuple<dstringt, bool>>
+get_guard_variables(const guard_exprt &guard);
+
 struct loopt
 {
   const size_t id;
@@ -213,6 +223,8 @@ struct loopt
   const loop_stackt *stack;
 
   const size_t depth;
+  /// guard in the context (remove later all guards that are part of the guards variable)
+  const guardt context_guard;
 
   /// omits the very first iteration
   std::vector<loop_iteration> iterations;
@@ -235,6 +247,7 @@ struct loopt
     parent_idt parent,
     loop_stackt *stack,
     const size_t depth,
+    guardt context_guard,
     size_t before_end_scope);
 
   /// returns the end that omits the first loop iteration
@@ -300,28 +313,120 @@ struct loopt
   std::vector<std::string> result_variables() const;
 };
 
-struct aborted_recursion
-{
-  std::unordered_set<dstringt> parameters;
-  optionalt<dstringt> return_var;
-  std::string func_id;
-  parent_idt parent;
+struct recursiont;
 
-  explicit aborted_recursion(const std::string &func_id, parent_idt parent)
-    : func_id(func_id), parent(parent)
+/// Aborted last recursion
+/// it is related an abstract recursion iff the abstraction is used
+/// It knows the global variables that it reads and writes
+class aborted_recursiont
+{
+public:
+  const loop_stackt *stack;
+  const size_t id;
+  const dstringt func_id;
+  const parent_idt parent;
+  const optionalt<recursiont *> recursion;
+  /// guard expression that holds true when the function call is applied
+  /// important for later analyses
+  /// without it `bool fib(bool x){return x ? fib(x) : x;}}` would over approximate the variability that goes
+  /// into `fib(x)` (with REC=0)
+  const guardt guard;
+
+private:
+  /// (non constant?) parameter variables
+  std::unordered_set<dstringt> parameters;
+  /// read globals
+  std::unordered_set<dstringt> read_globals;
+  /// return value if used and if present
+  optionalt<dstringt> return_var;
+  /// written globals
+  std::unordered_set<dstringt> written_globals;
+
+public:
+  explicit aborted_recursiont(
+    const loop_stackt *stack,
+    size_t id,
+    dstringt funcId,
+    parent_idt parent,
+    guardt guard,
+    optionalt<recursiont *> recursion = {})
+    : stack(stack),
+      id(id),
+      func_id(std::move(funcId)),
+      parent(parent),
+      recursion(std::move(recursion)),
+      guard(std::move(guard))
   {
   }
 
+  bool assign_return(dstringt var);
+
+  void assign_parameter(dstringt var)
+  {
+    assert(!return_var);
+    parameters.emplace(var);
+  }
+
+  /// Resolve all read globals and their current instantiation
+  void assign_read_globals(const std::function<dstringt(dstringt)> &resolve);
+
+  /// get variable base names of possibly modified global variables
+  /// (non local variables)
+  /// assign them new names
+  std::unordered_set<dstringt> get_assigned_global_variable_base_names() const;
+
+  /// creates an unknown variable for each written global
+  void assign_written_globals(
+    const std::function<dstringt(dstringt)> &&create_unknown);
+
+  /// returns [(guard_var, value it is assumed to have)]
+  std::vector<std::tuple<dstringt, bool>> get_guard_variables() const;
+
+  friend std::ostream &
+  operator<<(std::ostream &os, const aborted_recursiont &recursion);
+
+protected:
+  /// parameters + read globals
+  std::unordered_set<dstringt> combined_read_vars() const;
+
+  /// return value + written globals
+  std::unordered_set<dstringt> combined_written_vars() const;
+};
+
+struct recursiont
+{
+  /*const loop_stackt *stack;
+
+  std::string func_id;
+  parent_idt parent;
+
+  const size_t start_scope;
+
+  size_t end_scope;
+
+  std::unordered_set<dstringt> parameters;
+  optionalt<dstringt> return_var;
+
+  explicit aborted_recursion( const loop_stackt *stack, const std::string& func_id, parent_idt parent, size_t start_scope):
+    stack(stack), func_id(func_id), parent(parent), start_scope(start_scope), end_scope(0) {}
+
   bool assign_return(dstringt id);
 
-  void assign(dstringt id)
-  {
+  void assign_parameter(dstringt id){
     assert(!return_var);
     parameters.emplace(id);
   }
 
+  /// note: parameters are assigned
+  /// idea: record the variables that aren't already assigned
+  bool is_already_assigned(dstringt id);
+
+  std::unordered_set<dstringt> assigned_globals();
+
+  std::unordered_set<dstringt> read_globals();
+
   friend std::ostream &
-  operator<<(std::ostream &os, const aborted_recursion &recursion);
+  operator<<(std::ostream &os, const aborted_recursion &recursion);*/
 };
 
 class loop_stackt
@@ -334,14 +439,26 @@ class loop_stackt
 
   std::map<symbol_exprt, size_t> guard_symbol_to_loop{};
 
-  std::vector<aborted_recursion> recursions;
+  std::vector<aborted_recursiont> aborted_recursions;
 
-  optionalt<aborted_recursion> current_recursion;
+  optionalt<aborted_recursiont *> current_aborted_recursion_;
   bool current_recursion_waits_for_return = false;
 
   std::vector<parent_idt> parent_ids;
 
+  optionalt<ls_infot> info;
+
 public:
+  void init(const goto_functionst &functions)
+  {
+    info = ls_infot::create(functions);
+  }
+
+  const ls_infot get_info() const
+  {
+    return info.value();
+  }
+
   bool make_second_to_last_iteration_abstract() const
   {
     return true;
@@ -378,7 +495,8 @@ public:
     scopes.emplace_back(scopes.size());
   }
 
-  void push_back_loop(dstringt func_id, size_t loop_nr)
+  void
+  push_back_loop(dstringt func_id, size_t loop_nr, guard_exprt context_guard)
   {
     auto before_id = current_scope().id;
     push_back_scope();
@@ -389,6 +507,7 @@ public:
       parent_ids.back(),
       this,
       loop_stack.size(),
+      context_guard,
       before_id);
     loop_stack.push_back(loops.back().id);
     parent_ids.emplace_back(parent_idt{parent_typet::LOOP, loops.back().id});
@@ -444,11 +563,15 @@ public:
 
   void assign(dstringt id);
 
-  void push_aborted_recursion(std::string function_id)
-  {
-    assert(!current_recursion);
-    current_recursion = aborted_recursion(function_id, parent_ids.back());
-  }
+  void read(dstringt id);
+
+  /// Add an aborted recursion
+  /// uses the state to obtain the guards
+  /// resolve: var base name to name
+  void push_aborted_recursion(
+    dstringt function_id,
+    const goto_symex_statet &state,
+    std::function<dstringt(dstringt)> &&resolve);
 
   void pop_aborted_recursion()
   {
@@ -480,6 +603,18 @@ public:
   /// An assignment should be removed if it is related to the return value of an aborted recursion,
   /// or if it is related to the second to last iteration (and its configured to use this iteration as an abstract one)
   bool should_discard_assignments_to(const dstringt &lhs);
+
+  bool in_aborted_recursion() const
+  {
+    return current_aborted_recursion_.has_value();
+  }
+
+  /// returns null if not currently processing aborted recursion
+  aborted_recursiont *current_aborted_recursion()
+  {
+    return current_aborted_recursion_ ? current_aborted_recursion_.value()
+                                      : nullptr;
+  }
 };
 
 #endif //CBMC_LOOPSTACK_HPP

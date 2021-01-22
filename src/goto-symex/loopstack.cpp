@@ -75,24 +75,50 @@ bool scope::matches_guard(dstringt guard_var) const
   return guard && guard.value() == guard_var;
 }
 
+void scope::read(dstringt var)
+{
+  if(getenv("LOG_READ"))
+  {
+    std::cerr << "read " << var << "\n";
+  }
+  read_variables.emplace(var);
+}
+
+std::vector<std::tuple<dstringt, bool>>
+get_guard_variables(const guard_exprt &guard)
+{
+  if(guard.is_true())
+  {
+    return {};
+  }
+  assert(!guard.is_false());
+
+  auto func = [](exprt expr) {
+    assert(!expr.is_constant());
+    if(expr.id() == ID_not)
+    {
+      return std::make_tuple(
+        to_symbol_expr(to_not_expr(expr).op()).get_identifier(), false);
+    }
+    return std::make_tuple(to_symbol_expr(expr).get_identifier(), true);
+  };
+
+  auto expr = guard.as_expr();
+  if(expr.id() != ID_and)
+  {
+    return {func(expr)};
+  }
+  std::vector<std::tuple<dstringt, bool>> ret;
+  for(auto op : to_and_expr(expr).operands())
+  {
+    ret.push_back(func(op));
+  }
+  return ret;
+}
+
 std::vector<dstringt> loop_iteration::assigned_variables() const
 {
   return loop->get_stack()->variables(start_scope, end_scope);
-}
-
-bool aborted_recursion::assign_return(dstringt id)
-{
-  //std::cerr << "return assigned " << id << " " << parameters.begin()->c_str() << "\n";
-  std::string str = id.c_str();
-  if(
-    !return_var && str.find(func_id) == 0 &&
-    (str.rfind("::return_value") != std::string::npos ||
-     str.rfind("#return_value") != std::string::npos))
-  {
-    return_var = id;
-    return true;
-  }
-  return false;
 }
 
 loop_iteration::loop_iteration(
@@ -206,6 +232,14 @@ std::ostream &operator<<(std::ostream &os, const loopt &loop)
   {
     os << " " << var;
   }
+  os << " | guards ";
+  if(!loop.guards.empty())
+  {
+    for(const auto &var : get_guard_variables(loop.guards.back()))
+    {
+      os << " " << (std::get<1>(var) ? "" : "-") << std::get<0>(var);
+    }
+  }
   os << " | lguard ";
   if(!loop.guards.empty())
   {
@@ -237,6 +271,7 @@ loopt::loopt(
   parent_idt parent,
   loop_stackt *stack,
   const size_t depth,
+  guardt context_guard,
   size_t before_end_scope)
   : id(id),
     func_id(func_id),
@@ -244,6 +279,7 @@ loopt::loopt(
     parent(parent),
     stack(stack),
     depth(depth),
+    context_guard(context_guard),
     before_end_scope(before_end_scope)
 {
 }
@@ -322,21 +358,111 @@ std::vector<std::string> loopt::result_variables() const
     .get_first();
 }
 
-std::ostream &operator<<(std::ostream &os, const aborted_recursion &recursion)
+bool aborted_recursiont::assign_return(dstringt var)
 {
-  if(!recursion.return_var)
+  //std::cerr << "return assigned " << id << " " << parameters.begin()->c_str() << "\n";
+  std::string str = var.c_str();
+  if(
+    !return_var && str.find(func_id.c_str()) == 0 &&
+    (str.rfind("::return_value") != std::string::npos ||
+     str.rfind("#return_value") != std::string::npos))
+  {
+    return_var = var;
+    return true;
+  }
+  return false;
+}
+
+void aborted_recursiont::assign_read_globals(
+  const std::function<dstringt(dstringt)> &resolve)
+{
+  for(auto var : stack->get_info().get_func_info(func_id).get_read_globals())
+  {
+    read_globals.emplace(resolve(var));
+  }
+  if(getenv("LOG_REC"))
+  {
+    std::cerr << "  register global read in aborted";
+    for(auto var : read_globals)
+    {
+      std::cerr << " " << var;
+    }
+    std::cerr << "\n";
+  }
+}
+
+std::unordered_set<dstringt>
+aborted_recursiont::get_assigned_global_variable_base_names() const
+{
+  return stack->get_info().get_func_info(func_id).get_assigned_globals();
+}
+
+void aborted_recursiont::assign_written_globals(
+  const std::function<dstringt(dstringt)> &&create_unknown)
+{
+  for(auto var : get_assigned_global_variable_base_names())
+  {
+    written_globals.emplace(create_unknown(var));
+  }
+  if(getenv("LOG_REC"))
+  {
+    std::cerr << "  created new assigned globals in aborted";
+    for(auto var : written_globals)
+    {
+      std::cerr << " " << var;
+    }
+    std::cerr << "\n";
+  }
+}
+
+std::unordered_set<dstringt> aborted_recursiont::combined_read_vars() const
+{
+  std::unordered_set<dstringt> res = {read_globals};
+  res.insert(parameters.begin(), parameters.end());
+  return res;
+}
+
+std::unordered_set<dstringt> aborted_recursiont::combined_written_vars() const
+{
+  std::unordered_set<dstringt> res = {written_globals};
+  if(return_var)
+  {
+    res.emplace(*return_var);
+  }
+  return res;
+}
+
+std::ostream &operator<<(std::ostream &os, const aborted_recursiont &recursion)
+{
+  auto combined_written = recursion.combined_written_vars();
+  if(combined_written.empty())
   {
     return os;
   }
   os << "c recursion " << recursion.func_id << " | " << recursion.parent
-     << " | return " << *recursion.return_var;
-  os << " | param";
-  for(const auto &var : recursion.parameters)
+     << " | return";
+  for(auto var : combined_written)
   {
     os << " " << var;
   }
+  os << " | param";
+  for(const auto &var : recursion.combined_read_vars())
+  {
+    os << " " << var;
+  }
+  os << " | guards";
+  for(const auto &var : recursion.get_guard_variables())
+  {
+    os << " " << (std::get<1>(var) ? "" : "-") << std::get<0>(var);
+  }
   os << "\n";
   return os;
+}
+
+std::vector<std::tuple<dstringt, bool>>
+aborted_recursiont::get_guard_variables() const
+{
+  return ::get_guard_variables(guard);
 }
 
 std::vector<dstringt>
@@ -385,7 +511,7 @@ void loop_stackt::emit(std::ostream &os)
   {
     os << loop;
   }
-  for(const auto &recursion : recursions)
+  for(const auto &recursion : aborted_recursions)
   {
     os << recursion;
   }
@@ -409,22 +535,21 @@ void loop_stackt::assign(dstringt id)
   if (current_recursion_waits_for_return && contains_tmp){
     std::cerr << " cr_waits_for_return";
   }*/
-  if(current_recursion)
+  if(in_aborted_recursion())
   {
     if(current_recursion_waits_for_return)
     {
       if(contains_tmp)
       {
-        current_recursion->assign_return(id);
+        current_aborted_recursion()->assign_return(id);
         current_scope().assign(id);
         current_recursion_waits_for_return = false;
-        recursions.emplace_back(std::move(*current_recursion));
-        current_recursion = {};
+        current_aborted_recursion_ = {};
       }
     }
     else
     {
-      current_recursion->assign(id);
+      //current_aborted_recursion()->assign_parameter(id);
     }
   }
   else
@@ -437,13 +562,34 @@ void loop_stackt::assign(dstringt id)
   }
 }
 
+void loop_stackt::read(dstringt id)
+{
+}
+
 bool loop_stackt::should_discard_assignments_to(const dstringt &lhs)
 {
-  return (current_recursion && current_recursion_waits_for_return &&
+  // dtodo: valid??
+  return (in_aborted_recursion() && current_recursion_waits_for_return &&
           std::string(lhs.c_str()).find("::$tmp::return_value") !=
             std::string::npos) ||
          (is_in_loop() && current_loop().in_second_to_last_iteration() &&
           make_second_to_last_iteration_abstract());
+}
+
+void loop_stackt::push_aborted_recursion(
+  dstringt function_id,
+  const goto_symex_statet &state,
+  std::function<dstringt(dstringt)> &&resolve)
+{
+  assert(!current_aborted_recursion_);
+  aborted_recursions.emplace_back(aborted_recursiont(
+    this,
+    aborted_recursions.size(),
+    function_id,
+    parent_ids.back(),
+    state.guard));
+  current_aborted_recursion_ = &aborted_recursions.back();
+  current_aborted_recursion_.value()->assign_read_globals(resolve);
 }
 
 std::ostream &operator<<(std::ostream &os, const parent_idt &id)

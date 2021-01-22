@@ -104,6 +104,7 @@ public:
   /// \param new_symbol_table: A symbol table to store the symbols added during
   /// symbolic execution
   virtual void symex_from_entry_point_of(
+    const goto_functionst &functions,
     const get_goto_functiont &get_goto_function,
     symbol_tablet &new_symbol_table);
 
@@ -123,6 +124,7 @@ public:
   /// \param new_symbol_table: A symbol table to store the symbols added during
   ///   symbolic execution
   virtual void resume_symex_from_saved_state(
+    const goto_functionst &functions,
     const get_goto_functiont &get_goto_function,
     const statet &saved_state,
     symex_target_equationt *saved_equation,
@@ -142,6 +144,7 @@ public:
   ///   symbolic execution
   virtual void symex_with_state(
     statet &state,
+    const goto_functionst &functions,
     const get_goto_functiont &get_goto_functions,
     symbol_tablet &new_symbol_table);
 
@@ -486,11 +489,14 @@ protected:
   /// \param goto_function: function whose parameters we want to assign
   /// \param [out] state: state of the goto program
   /// \param arguments: arguments that are passed to the function
+  /// \param argument_call_back: gets passed the actual parameter names
   void parameter_assignments(
     const irep_idt &function_identifier,
     const goto_functionst::goto_functiont &goto_function,
     statet &state,
-    const exprt::operandst &arguments);
+    const exprt::operandst &arguments,
+    const std::function<void(dstringt)> &argument_call_back = [](dstringt x) {
+    });
 
   // exceptions
   /// Symbolically execute a THROW instruction

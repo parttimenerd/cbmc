@@ -41,7 +41,8 @@ void goto_symext::parameter_assignments(
   const irep_idt &function_identifier,
   const goto_functionst::goto_functiont &goto_function,
   statet &state,
-  const exprt::operandst &arguments)
+  const exprt::operandst &arguments,
+  const std::function<void(dstringt)> &argument_call_back)
 {
   // iterates over the arguments
   exprt::operandst::const_iterator it1=arguments.begin();
@@ -140,6 +141,9 @@ void goto_symext::parameter_assignments(
       exprt::operandst lhs_conditions;
       symex_assignt{state, assignment_type, ns, symex_config, target}
         .assign_rec(lhs, expr_skeletont{}, rhs, lhs_conditions);
+      argument_call_back(
+        to_symbol_expr(state.rename(symbol.symbol_expr(), ns).get())
+          .get_identifier());
     }
 
     if(it1!=arguments.end())
@@ -159,7 +163,7 @@ void goto_symext::parameter_assignments(
         ns.lookup(function_identifier).mode,
         state.symbol_table);
       va_arg.is_parameter = true;
-
+      argument_call_back(va_arg.name);
       state.call_stack().top().parameter_names.push_back(va_arg.name);
 
       symex_assign(state, va_arg.symbol_expr(), *it1);
@@ -237,13 +241,27 @@ void goto_symext::symex_function_call_code(
     state.source.thread_nr,
     state.call_stack().top().loop_iterations[identifier].count);
 
+  if(getenv("LOG_REC"))
+  {
+    std::cerr << "------------------ call of function " << identifier
+              << "  stop_unwinding = " << stop_recursing
+              << " pc = " << state.source.pc->to_string() << " count "
+              << state.call_stack().top().loop_iterations[identifier].count
+              << "\n";
+  }
   // see if it's too much
 
   if(stop_recursing)
   {
-    ls_stack.push_aborted_recursion(identifier.c_str());
-
     framet &frame = state.call_stack().new_frame(state.source, state.guard);
+    // preserve locality of local variables
+    locality(identifier, state, path_storage, goto_function, ns);
+
+    ls_stack.push_aborted_recursion(
+      identifier.c_str(), state, [&](dstringt var) {
+        auto renamed = state.rename(ns.lookup(var).symbol_expr(), ns).get();
+        return to_symbol_expr(renamed).get_identifier();
+      });
 
     // Only enable loop analysis when complexity is enabled.
     if(symex_config.complexity_limits_active)
@@ -253,13 +271,22 @@ void goto_symext::symex_function_call_code(
       frame.loops_info = path_storage.get_loop_analysis(identifier);
     }
 
-    // preserve locality of local variables
-    locality(identifier, state, path_storage, goto_function, ns);
+    auto argument_call_back = [&](dstringt argument) {
+      ls_stack.current_aborted_recursion()->assign_parameter(argument);
+    };
 
     // assign actuals to formal parameters
-    parameter_assignments(identifier, goto_function, state, call.arguments());
+    parameter_assignments(
+      identifier, goto_function, state, call.arguments(), argument_call_back);
 
-    symex_assume_l2(state, false_exprt());
+    if(getenv("LOG_REC"))
+    {
+      std::cerr << "abort recursion of " << identifier.c_str() << "\n";
+    }
+
+    // push the aborted recursion and register the read globals
+
+    //symex_assume_l2(state, false_exprt()); // this lead to a bug, as it is apparently equivalent to `assume(0)`
     if(false)
     {
       if(symex_config.partial_loops)
@@ -275,9 +302,9 @@ void goto_symext::symex_function_call_code(
         symex_assume_l2(state, false_exprt());
       }
 
-    symex_transition(state);
-    ls_stack.pop_aborted_recursion();
-    return;
+      symex_transition(state);
+      ls_stack.pop_aborted_recursion();
+      return;
     }
   }
 
@@ -331,11 +358,38 @@ void goto_symext::symex_function_call_code(
         }
       }
     }
-
+    if(stop_recursing)
+    {
+      ls_stack.current_aborted_recursion()->assign_written_globals(
+        [&](dstringt var) {
+          auto renamed = state.rename(ns.lookup(var).symbol_expr(), ns);
+          auto fresh = get_fresh_aux_symbol(
+            renamed.get().type(),
+            "oa_unknown",
+            var.c_str(),
+            state.source.pc->source_location,
+            ns.lookup(var).mode,
+            state.symbol_table);
+          auto rhs = clean_expr(fresh.symbol_expr(), state, false);
+          exprt::operandst lhs_conditions;
+          ssa_exprt new_lhs =
+            state.rename_ssa<L1>(ssa_exprt{ns.lookup(var).symbol_expr()}, ns)
+              .get();
+          auto ret = state.assignment(new_lhs, rhs, ns, true, true);
+          return ret.get().get_identifier();
+        });
+    }
     symex_transition(state);
     if(stop_recursing)
     {
       ls_stack.pop_aborted_recursion();
+    }
+    if(getenv("LOG_REC"))
+    {
+      std::cerr << "end aborted recursion\n";
+      std::cerr << "------------------ end aborted recursion of function "
+                << identifier << "  stop_unwinding = " << stop_recursing
+                << "\n";
     }
     return;
   }
@@ -376,6 +430,11 @@ void goto_symext::symex_function_call_code(
 
   state.source.function_id = identifier;
   symex_transition(state, goto_function.body.instructions.begin(), false);
+  if(getenv("LOG_REC"))
+  {
+    std::cerr << "------------------ end of function " << identifier
+              << "  stop_unwinding = " << stop_recursing << "\n";
+  }
 }
 
 /// pop one call frame

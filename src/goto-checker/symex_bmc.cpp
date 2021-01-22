@@ -178,7 +178,8 @@ bool symex_bmct::get_unwind_recursion(
   // / --unwind options to decide:
   if(abort_unwind_decision.is_unknown())
   {
-    auto limit = unwindset.get_limit(id, thread_nr);
+    auto limit = getenv("REC") ? std::stoi(getenv("REC"))
+                               : unwindset.get_limit(id, thread_nr);
 
     if(!limit.has_value())
       abort_unwind_decision = tvt(false);

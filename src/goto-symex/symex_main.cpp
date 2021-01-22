@@ -29,6 +29,7 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <util/symbol_table.h>
 
 #include "path_storage.h"
+#include <chrono>
 #include <util/format.h>
 #include <util/format_expr.h>
 #include <util/format_type.h>
@@ -328,9 +329,11 @@ void goto_symext::symex_threaded_step(
 
 void goto_symext::symex_with_state(
   statet &state,
+  const goto_functionst &functions,
   const get_goto_functiont &get_goto_function,
   symbol_tablet &new_symbol_table)
 {
+  ls_stack.init(functions);
   // resets the namespace to only wrap a single symbol table, and does so upon
   // destruction of an object of this type; instantiating the type is thus all
   // that's needed to achieve a reset upon exiting this method
@@ -384,6 +387,7 @@ void goto_symext::symex_with_state(
 }
 
 void goto_symext::resume_symex_from_saved_state(
+  const goto_functionst &functions,
   const get_goto_functiont &get_goto_function,
   const statet &saved_state,
   symex_target_equationt *const saved_equation,
@@ -399,7 +403,7 @@ void goto_symext::resume_symex_from_saved_state(
 
   // Do NOT do the same initialization that `symex_with_state` does for a
   // fresh state, as that would clobber the saved state's program counter
-  symex_with_state(state, get_goto_function, new_symbol_table);
+  symex_with_state(state, functions, get_goto_function, new_symbol_table);
 }
 
 std::unique_ptr<goto_symext::statet> goto_symext::initialize_entry_point_state(
@@ -469,12 +473,20 @@ std::unique_ptr<goto_symext::statet> goto_symext::initialize_entry_point_state(
 }
 
 void goto_symext::symex_from_entry_point_of(
+  const goto_functionst &functions,
   const get_goto_functiont &get_goto_function,
   symbol_tablet &new_symbol_table)
 {
+  const auto symex_start = std::chrono::steady_clock::now();
   auto state = initialize_entry_point_state(get_goto_function);
 
-  symex_with_state(*state, get_goto_function, new_symbol_table);
+  symex_with_state(*state, functions, get_goto_function, new_symbol_table);
+
+  const auto symex_stop = std::chrono::steady_clock::now();
+  std::chrono::duration<double> symex_runtime =
+    std::chrono::duration<double>(symex_stop - symex_start);
+  log.status() << "Runtime Symex: " << symex_runtime.count() << "s"
+               << messaget::eom;
 }
 
 void goto_symext::initialize_path_storage_from_entry_point_of(
@@ -669,8 +681,13 @@ void goto_symext::execute_next_instruction(
   case ASSIGN:
     if(getenv("LOG_ASSIGN"))
     {
-      std::cerr << "                                           assign "
-                << instruction.get_assign().to_string2() << "\n";
+      std::cerr
+        << "                                           assign "
+        << instruction.get_assign().to_string2() << "    renamed "
+        << state.rename(instruction.get_assign().lhs(), ns).get().to_string2()
+        << " = "
+        << state.rename(instruction.get_assign().rhs(), ns).get().to_string2()
+        << "\n";
     }
     if(state.reachable)
       symex_assign(state, instruction.assign_lhs(), instruction.assign_rhs());
@@ -792,7 +809,7 @@ void goto_symext::try_filter_value_sets(
   const value_sett &original_value_set,
   value_sett *jump_taken_value_set,
   value_sett *jump_not_taken_value_set,
-  const namespacet &ns)
+  const namespacet &ns_)
 {
   condition = state.rename<L1>(std::move(condition), ns).get();
 

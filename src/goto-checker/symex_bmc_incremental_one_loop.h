@@ -26,11 +26,14 @@ public:
 
   /// Return true if symex can be resumed
   bool from_entry_point_of(
+    const goto_functionst &functions,
     const get_goto_functiont &get_goto_function,
     symbol_tablet &new_symbol_table);
 
   /// Return true if symex can be resumed
-  bool resume(const get_goto_functiont &get_goto_function);
+  bool resume(
+    const goto_functionst &functions,
+    const get_goto_functiont &get_goto_function);
 
 protected:
   const irep_idt incr_loop_id;

@@ -45,9 +45,21 @@ bool scratch_programt::check_sat(bool do_slice, guard_managert &guard_manager)
       return functions.function_map.at(key);
   };
 
-  symex_state = symex.initialize_entry_point_state(get_goto_function);
+  symex_state = util_make_unique<goto_symex_statet>(
+    symex_targett::sourcet(goto_functionst::entry_point(), *this),
+    DEFAULT_MAX_FIELD_SENSITIVITY_ARRAY_SIZE,
+    guard_manager,
+    [this](const irep_idt &id) {
+      return path_storage.get_unique_l2_index(id);
+    });
 
-  symex.symex_with_state(*symex_state, get_goto_function, symex_symbol_table);
+  symex.symex_with_state(
+    *symex_state,
+    functions,
+    [this](const irep_idt &key) -> const goto_functionst::goto_functiont & {
+      return functions.function_map.at(key);
+    },
+    symex_symbol_table);
 
   if(do_slice)
   {

@@ -22,6 +22,9 @@ Debugging output
 | SKIP_CPROVER_VARIABLES | skip CProver variables (all that start with an underscore) in comments output
 | LOG_LOOP | log start and end of last loop iteration and variable assignments
 | LOG_LOOP_MERGES | log name merges on phis and more loop info
+| LOG_READ | log read variables
+| LOG_REC  | log stuff related to aborted recursions
+| REC      | depth of recursion for a function (e.g. REC=0 → online inline the first occurrence in the depth tree) 
 
 About
 =====

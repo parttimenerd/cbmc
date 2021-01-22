@@ -284,7 +284,9 @@ void goto_symext::symex_goto(statet &state)
       state.call_stack().top().loop_iterations[loop_id].count == 0)
     {
       ls_stack.push_back_loop(
-        state.call_stack().top().function_identifier, instruction.loop_number);
+        state.call_stack().top().function_identifier,
+        instruction.loop_number,
+        state.guard);
     }
 
     bool in_last_loop_iteration =
