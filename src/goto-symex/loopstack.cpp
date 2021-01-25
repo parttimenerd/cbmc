@@ -195,7 +195,7 @@ size_t loopt::adjusted_end_scope() const
   if(first_loop_guard)
   {
     while(
-      tmp_end >= 0 &&
+      tmp_end > 0 &&
       !stack->get_scope(tmp_end + 1).matches_guard(first_loop_guard.value()))
     {
       tmp_end--;

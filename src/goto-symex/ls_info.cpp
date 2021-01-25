@@ -136,7 +136,19 @@ ls_infot ls_infot::create(const goto_functionst &functions)
   // init the func infos
   std::unordered_map<dstringt, ls_func_info> func_infos;
 
-  auto used_variables = [](const goto_functiont &func) {
+  auto sub_used_func = [](const exprt &expr) {
+    std::vector<dstringt> read;
+    const_expr_func_visitort visitor([&](const exprt &expr) {
+      if(expr.id() == ID_symbol)
+      {
+        read.emplace_back(to_symbol_expr(expr).get_identifier());
+      }
+    });
+    expr.visit(visitor);
+    return read;
+  };
+
+  auto used_variables = [&sub_used_func](const goto_functiont &func) {
     std::unordered_set<dstringt> assigned;
     std::unordered_set<dstringt> read;
     auto process_right = [&read](const exprt &expr) {
@@ -152,8 +164,19 @@ ls_infot ls_infot::create(const goto_functionst &functions)
       if(instruction.type == goto_program_instruction_typet::ASSIGN)
       {
         auto &assign = to_code_assign(instruction.code);
-        auto &lhs = to_symbol_expr(assign.lhs());
-        assigned.emplace(lhs.get_identifier());
+        if(assign.lhs().id() == ID_index)
+        {
+          auto &lhs = to_index_expr(assign.lhs());
+          auto sub_symbols_array = sub_used_func(lhs.array());
+          assigned.emplace(sub_symbols_array.front());
+          read.insert(sub_symbols_array.begin() + 1, sub_symbols_array.end());
+          lhs.index().visit(visitor);
+        }
+        else if(assign.lhs().id() == ID_symbol)
+        {
+          auto &lhs = to_symbol_expr(assign.lhs());
+          assigned.emplace(lhs.get_identifier());
+        }
         assign.rhs().visit(visitor);
       }
       else
