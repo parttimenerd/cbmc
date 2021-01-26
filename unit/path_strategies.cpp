@@ -442,6 +442,7 @@ void _check_with_strategy(
     setup_symex(symex, ns, options, ui_message_handler);
 
     symex.resume_symex_from_saved_state(
+      goto_model.goto_functions,
       goto_symext::get_goto_function(goto_model),
       resume.state,
       &resume.equation,

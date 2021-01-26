@@ -127,7 +127,7 @@ public:
     const goto_functionst &functions,
     const get_goto_functiont &get_goto_function,
     const statet &saved_state,
-    symex_target_equationt *saved_equation,
+    symex_target_equationt *const saved_equation,
     symbol_tablet &new_symbol_table);
 
   //// \brief Symbolically execute the entire program starting from entry point
