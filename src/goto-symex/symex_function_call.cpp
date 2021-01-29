@@ -32,9 +32,10 @@ static void locality(
   const goto_functionst::goto_functiont &goto_function,
   const namespacet &ns);
 
-bool goto_symext::get_unwind_recursion(const irep_idt &, unsigned, unsigned)
+recursing_decisiont
+goto_symext::get_unwind_recursion(const irep_idt &, unsigned, unsigned)
 {
-  return false;
+  return recursing_decisiont::RESUME;
 }
 
 void goto_symext::parameter_assignments(
@@ -220,6 +221,33 @@ void goto_symext::symex_function_call_symbol(
     symex_function_call_code(get_goto_function, state, code);
 }
 
+dstringt resolve(goto_symex_statet &state, namespacet &ns, dstringt var)
+{
+  auto renamed = state.rename(ns.lookup(var).symbol_expr(), ns).get();
+  return to_symbol_expr(renamed).get_identifier();
+}
+
+void assign_unknown(
+  goto_symex_statet &state,
+  goto_symext &symex,
+  namespacet &ns,
+  dstringt var)
+{
+  auto renamed = state.rename(ns.lookup(var).symbol_expr(), ns);
+  auto fresh = get_fresh_aux_symbol(
+    renamed.get().type(),
+    "oa_unknown",
+    var.c_str(),
+    state.source.pc->source_location,
+    ns.lookup(var).mode,
+    state.symbol_table);
+  auto rhs = symex.clean_expr(fresh.symbol_expr(), state, false);
+  exprt::operandst lhs_conditions;
+  ssa_exprt new_lhs =
+    state.rename_ssa<L1>(ssa_exprt{ns.lookup(var).symbol_expr()}, ns).get();
+  auto ret = state.assignment(new_lhs, rhs, ns, true, true);
+}
+
 void goto_symext::symex_function_call_code(
   const get_goto_functiont &get_goto_function,
   statet &state,
@@ -238,23 +266,33 @@ void goto_symext::symex_function_call_code(
   if(emplace_safe_pointers_result.second)
     emplace_safe_pointers_result.first->second(goto_function.body);
 
-  const bool stop_recursing = get_unwind_recursion(
-    identifier,
-    state.source.thread_nr,
-    state.call_stack().top().loop_iterations[identifier].count);
+  auto rec_count = state.call_stack().top().loop_iterations[identifier].count;
+
+  const recursing_decisiont recursing_decision =
+    get_unwind_recursion(identifier, state.source.thread_nr, rec_count);
+
+  const auto resolve = [&](dstringt var) { return ::resolve(state, ns, var); };
+
+  const auto assign_unknown = [&](dstringt var) {
+    ::assign_unknown(state, *this, ns, var);
+  };
 
   if(getenv("LOG_REC"))
   {
     std::cerr << "------------------ call of function " << identifier
-              << "  stop_unwinding = " << stop_recursing
+              << "  stop_unwinding = " << recursing_decision
               << " pc = " << state.source.pc->source_location.as_string()
               << " count "
               << state.call_stack().top().loop_iterations[identifier].count
               << "\n";
   }
-  // see if it's too much
 
-  if(stop_recursing)
+  // we hide the call if the caller and callee are both hidden
+  const bool hidden =
+    state.call_stack().top().hidden_function && goto_function.is_hidden();
+
+  // see if it's too much
+  if(recursing_decision == recursing_decisiont::ABORT)
   {
     framet &frame = state.call_stack().new_frame(state.source, state.guard);
     // preserve locality of local variables
@@ -276,11 +314,31 @@ void goto_symext::symex_function_call_code(
     frame.loop_iterations[identifier].is_recursion = true;
     frame.loop_iterations[identifier].count++;
 
-    ls_stack.push_aborted_recursion(
-      identifier.c_str(), state, [&](dstringt var) {
-        auto renamed = state.rename(ns.lookup(var).symbol_expr(), ns).get();
-        return to_symbol_expr(renamed).get_identifier();
-      });
+    // we can shortcut this if we are in the aborted recursion
+    // … as the API is far better as the old one
+    // … maybe rewrite it in the future
+    if(ls_stack.abstract_recursion().enabled())
+    {
+      parameter_assignments(
+        identifier, goto_function, state, call.arguments(), [](dstringt arg) {
+        });
+      ls_stack.abstract_recursion().create_rec_child(
+        identifier, state.guard, resolve, assign_unknown);
+      target.function_return(
+        state.guard.as_expr(), identifier, state.source, hidden);
+
+      if(call.lhs().is_not_nil())
+      {
+        const auto rhs =
+          side_effect_expr_nondett(call.lhs().type(), call.source_location());
+        code_assignt code(call.lhs(), rhs);
+        symex_assign(state, code);
+      }
+      symex_transition(state);
+      return;
+    }
+
+    ls_stack.push_aborted_recursion(identifier.c_str(), state, resolve);
 
     // Only enable loop analysis when complexity is enabled.
     if(symex_config.complexity_limits_active)
@@ -306,25 +364,6 @@ void goto_symext::symex_function_call_code(
     // push the aborted recursion and register the read globals
 
     //symex_assume_l2(state, false_exprt()); // this lead to a bug, as it is apparently equivalent to `assume(0)`
-    if(false)
-    {
-      if(symex_config.partial_loops)
-      {
-        // it's ok, ignore
-      }
-      else
-      {
-        if(symex_config.unwinding_assertions)
-          vcc(false_exprt(), "recursion unwinding assertion", state);
-
-        // Rule out this path:
-        symex_assume_l2(state, false_exprt());
-      }
-
-      symex_transition(state);
-      ls_stack.pop_aborted_recursion();
-      return;
-    }
   }
 
   // read the arguments -- before the locality renaming
@@ -333,16 +372,17 @@ void goto_symext::symex_function_call_code(
     make_range(arguments).map(
       [&](const exprt &a) { return state.rename(a, ns); });
 
-  // we hide the call if the caller and callee are both hidden
-  const bool hidden =
-    state.call_stack().top().hidden_function && goto_function.is_hidden();
-
-  // record the call
-  target.function_call(
-    state.guard.as_expr(), identifier, renamed_arguments, state.source, hidden);
-
-  if(!goto_function.body_available() || stop_recursing)
+  if(
+    !goto_function.body_available() ||
+    recursing_decision == recursing_decisiont::ABORT)
   {
+    // record the call
+    target.function_call(
+      state.guard.as_expr(),
+      identifier,
+      renamed_arguments,
+      state.source,
+      hidden);
     if(!goto_function.body_available())
     {
       no_body(identifier);
@@ -377,29 +417,16 @@ void goto_symext::symex_function_call_code(
         }
       }
     }
-    if(stop_recursing)
+    if(recursing_decision == recursing_decisiont::ABORT)
     {
       ls_stack.current_aborted_recursion()->assign_written_globals(
-        [&](dstringt var) {
-          auto renamed = state.rename(ns.lookup(var).symbol_expr(), ns);
-          auto fresh = get_fresh_aux_symbol(
-            renamed.get().type(),
-            "oa_unknown",
-            var.c_str(),
-            state.source.pc->source_location,
-            ns.lookup(var).mode,
-            state.symbol_table);
-          auto rhs = clean_expr(fresh.symbol_expr(), state, false);
-          exprt::operandst lhs_conditions;
-          ssa_exprt new_lhs =
-            state.rename_ssa<L1>(ssa_exprt{ns.lookup(var).symbol_expr()}, ns)
-              .get();
-          auto ret = state.assignment(new_lhs, rhs, ns, true, true);
-          return ret.get().get_identifier();
+        [&assign_unknown, &resolve](dstringt var) {
+          assign_unknown(var);
+          return resolve(var);
         });
     }
     symex_transition(state);
-    if(stop_recursing)
+    if(recursing_decision == recursing_decisiont::ABORT)
     {
       ls_stack.pop_aborted_recursion();
     }
@@ -407,7 +434,7 @@ void goto_symext::symex_function_call_code(
     {
       std::cerr << "end aborted recursion\n";
       std::cerr << "------------------ end aborted recursion of function "
-                << identifier << "  stop_unwinding = " << stop_recursing
+                << identifier << "  stop_unwinding = " << recursing_decision
                 << "\n";
     }
     return;
@@ -415,44 +442,86 @@ void goto_symext::symex_function_call_code(
 
   // produce a new frame
   PRECONDITION(!state.call_stack().empty());
-  framet &frame = state.call_stack().new_frame(state.source, state.guard);
 
-  // Only enable loop analysis when complexity is enabled.
-  if(symex_config.complexity_limits_active)
+  auto init_frame = [&](bool copy_loop_iterations) -> framet & {
+    // record the call
+    target.function_call(
+      state.guard.as_expr(),
+      identifier,
+      renamed_arguments,
+      state.source,
+      hidden);
+    framet &frame = state.call_stack().new_frame(state.source, state.guard);
+
+    // Only enable loop analysis when complexity is enabled.
+    if(symex_config.complexity_limits_active)
+    {
+      // Analyzes loops if required.
+      path_storage.add_function_loops(identifier, goto_function.body);
+      frame.loops_info = path_storage.get_loop_analysis(identifier);
+    }
+
+    // preserve locality of local variables
+    locality(identifier, state, path_storage, goto_function, ns);
+
+    // assign actuals to formal parameters
+    parameter_assignments(identifier, goto_function, state, arguments);
+
+    frame.end_of_function = --goto_function.body.instructions.end();
+    frame.return_value = call.lhs();
+    frame.function_identifier = identifier;
+    frame.hidden_function = goto_function.is_hidden();
+
+    if(copy_loop_iterations)
+    {
+      const framet &p_frame = state.call_stack().previous_frame();
+      for(const auto &pair : p_frame.loop_iterations)
+      {
+        if(pair.second.is_recursion)
+          frame.loop_iterations.insert(pair);
+      }
+    }
+
+    // increase unwinding counter
+    frame.loop_iterations[identifier].is_recursion = true;
+    frame.loop_iterations[identifier].count++;
+
+    state.source.function_id = identifier;
+    return frame;
+  };
+
+  // we handle the case that we have to start an abstract recursion
+  if(recursing_decision == recursing_decisiont::FIRST_ABSTRACT_RECURSION)
   {
-    // Analyzes loops if required.
-    path_storage.add_function_loops(identifier, goto_function.body);
-    frame.loops_info = path_storage.get_loop_analysis(identifier);
+    PRECONDITION(!ls_stack.abstract_recursion().in_abstract_recursion());
+
+    // maybe check at each end??
+
+    // create new frame…
+    auto old_guard = state.guard;
+    true_exprt true_expr;
+    guard_expr_managert manager; // not used in the implementation
+    state.guard = guardt{true_expr, manager};
+    framet &frame = init_frame(false);
+    frame.end_abstract_recursion = true;
+
+    ls_recursion_node_dbt &rec = ls_stack.abstract_recursion();
+    rec.begin_node(
+      identifier, old_guard, resolve, assign_unknown, [](const guardt &g) {});
+
+    symex_transition(state, goto_function.body.instructions.begin(), false);
+
+    POSTCONDITION(ls_stack.abstract_recursion().in_abstract_recursion());
   }
-
-  // preserve locality of local variables
-  locality(identifier, state, path_storage, goto_function, ns);
-
-  // assign actuals to formal parameters
-  parameter_assignments(identifier, goto_function, state, arguments);
-
-  frame.end_of_function=--goto_function.body.instructions.end();
-  frame.return_value=call.lhs();
-  frame.function_identifier=identifier;
-  frame.hidden_function = goto_function.is_hidden();
-
-  const framet &p_frame = state.call_stack().previous_frame();
-  for(const auto &pair : p_frame.loop_iterations)
+  else
   {
-    if(pair.second.is_recursion)
-      frame.loop_iterations.insert(pair);
-  }
-
-  // increase unwinding counter
-  frame.loop_iterations[identifier].is_recursion=true;
-  frame.loop_iterations[identifier].count++;
-
-  state.source.function_id = identifier;
-  symex_transition(state, goto_function.body.instructions.begin(), false);
-  if(getenv("LOG_REC"))
-  {
-    std::cerr << "------------------ end of function " << identifier
-              << "  stop_unwinding = " << stop_recursing << "\n";
+    init_frame(true);
+    symex_transition(state, goto_function.body.instructions.begin(), false);
+    if(getenv("LOG_REC"))
+    {
+      std::cerr << "------------------ end of function " << identifier
+                << "  stop_unwinding = " << recursing_decision << "\n";
+    }
   }
 }
 
@@ -510,10 +579,20 @@ static void pop_frame(
 void goto_symext::symex_end_of_function(statet &state)
 {
   const bool hidden = state.call_stack().top().hidden_function;
-
+  const bool end_abstract_recursion =
+    state.call_stack().top().end_abstract_recursion;
+  guardt guard = state.guard;
   // first record the return
   target.function_return(
     state.guard.as_expr(), state.source.function_id, state.source, hidden);
+  if(end_abstract_recursion)
+  {
+    ls_stack.abstract_recursion().finish_node(
+      state.source.function_id,
+      [&](dstringt var) { return ::resolve(state, ns, var); },
+      [&](dstringt var) { ::assign_unknown(state, *this, ns, var); },
+      [&](guardt g) { guard = g; });
+  }
 
   // then get rid of the frame
   pop_frame(state, path_storage, symex_config.doing_path_exploration);

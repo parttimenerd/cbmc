@@ -28,6 +28,15 @@ class side_effect_exprt;
 class symex_assignt;
 class typet;
 
+enum class recursing_decisiont
+{
+  ABORT,
+  RESUME,
+  FIRST_ABSTRACT_RECURSION
+};
+
+std::ostream &operator<<(std::ostream &os, const recursing_decisiont &abortion);
+
 /// \brief The main class for the forward symbolic simulator
 /// \remarks
 /// Higher-level architectural information on symbolic execution is
@@ -171,6 +180,17 @@ public:
   /// \return true if the symbolic execution is to be interrupted for checking
   virtual bool check_break(const irep_idt &loop_id, unsigned unwind);
 
+  /// Clean up an expression
+  /// \remarks
+  /// this does the following:
+  ///   a) rename non-det choices
+  ///   b) remove pointer dereferencing
+  ///   c) clean up byte_extract on the lhs of an assignment
+  /// \param expr: The expression to clean up
+  /// \param state
+  /// \param write
+  exprt clean_expr(exprt expr, statet &state, bool write);
+
 protected:
   /// The configuration to use for this symbolic execution
   const symex_configt symex_config;
@@ -271,17 +291,6 @@ protected:
   mutable messaget log;
 
   friend class symex_dereference_statet;
-
-  /// Clean up an expression
-  /// \remarks
-  /// this does the following:
-  ///   a) rename non-det choices
-  ///   b) remove pointer dereferencing
-  ///   c) clean up byte_extract on the lhs of an assignment
-  /// \param expr: The expression to clean up
-  /// \param state
-  /// \param write
-  exprt clean_expr(exprt expr, statet &state, bool write);
 
   void trigger_auto_object(const exprt &, statet &);
   void initialize_auto_object(const exprt &, statet &);
@@ -478,7 +487,7 @@ protected:
     statet &state,
     const code_function_callt &call);
 
-  virtual bool get_unwind_recursion(
+  virtual recursing_decisiont get_unwind_recursion(
     const irep_idt &identifier,
     unsigned thread_nr,
     unsigned unwind);

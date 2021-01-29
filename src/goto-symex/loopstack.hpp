@@ -15,6 +15,7 @@ Author: Johannes Bechberger, johannes@bechberger.me
 #include "analyses/guard_expr.h"
 #include "goto_symex_state.h"
 #include "ls_info.h"
+#include "ls_rec_graph.h"
 #include <expr.h>
 #include <iostream>
 #include <map>
@@ -206,9 +207,15 @@ struct parent_idt
   friend std::ostream &operator<<(std::ostream &os, const parent_idt &idt);
 };
 
+/// [(guard_var, value it is assumed to have)]
+using guard_variablest = std::vector<std::tuple<dstringt, bool>>;
+
 /// returns [(guard_var, value it is assumed to have)]
-std::vector<std::tuple<dstringt, bool>>
-get_guard_variables(const guard_exprt &guard);
+guard_variablest
+get_guard_variables(const guard_exprt &guard, size_t omit_last = 0);
+
+std::ostream &
+operator<<(std::ostream &os, const guard_variablest &guard_variables);
 
 struct loopt
 {
@@ -393,42 +400,6 @@ protected:
   std::unordered_set<dstringt> combined_written_vars() const;
 };
 
-struct recursiont
-{
-  /*const loop_stackt *stack;
-
-  std::string func_id;
-  parent_idt parent;
-
-  const size_t start_scope;
-
-  size_t end_scope;
-
-  std::unordered_set<dstringt> parameters;
-  optionalt<dstringt> return_var;
-
-  explicit aborted_recursion( const loop_stackt *stack, const std::string& func_id, parent_idt parent, size_t start_scope):
-    stack(stack), func_id(func_id), parent(parent), start_scope(start_scope), end_scope(0) {}
-
-  bool assign_return(dstringt id);
-
-  void assign_parameter(dstringt id){
-    assert(!return_var);
-    parameters.emplace(id);
-  }
-
-  /// note: parameters are assigned
-  /// idea: record the variables that aren't already assigned
-  bool is_already_assigned(dstringt id);
-
-  std::unordered_set<dstringt> assigned_globals();
-
-  std::unordered_set<dstringt> read_globals();
-
-  friend std::ostream &
-  operator<<(std::ostream &os, const aborted_recursion &recursion);*/
-};
-
 class loop_stackt
 {
   std::vector<scope> scopes;
@@ -447,16 +418,24 @@ class loop_stackt
   std::vector<parent_idt> parent_ids;
 
   optionalt<ls_infot> info;
+  std::unique_ptr<ls_recursion_node_dbt> rec_nodes;
 
 public:
   void init(const goto_functionst &functions)
   {
     info = ls_infot::create(functions);
+    rec_nodes = std::unique_ptr<ls_recursion_node_dbt>{
+      new ls_recursion_node_dbt(info.value())};
   }
 
   const ls_infot get_info() const
   {
     return info.value();
+  }
+
+  ls_recursion_node_dbt &abstract_recursion()
+  {
+    return *rec_nodes;
   }
 
   bool make_second_to_last_iteration_abstract() const

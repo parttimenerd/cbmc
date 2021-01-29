@@ -104,7 +104,7 @@ protected:
     const call_stackt &context,
     unsigned unwind) override;
 
-  bool get_unwind_recursion(
+  recursing_decisiont get_unwind_recursion(
     const irep_idt &identifier,
     unsigned thread_nr,
     unsigned unwind) override;

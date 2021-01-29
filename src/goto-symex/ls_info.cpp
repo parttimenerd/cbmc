@@ -10,7 +10,17 @@
 
 std::ostream &operator<<(std::ostream &os, const ls_func_info &info)
 {
-  os << "func_info(" << info.function_id << ", trans_assigned_globals = ";
+  os << "func_info(" << info.function_id << ",";
+  os << " parameters = ";
+  for(auto param : info.get_parameters())
+  {
+    os << param << " ";
+  }
+  if(info.get_return())
+  {
+    os << " return = " << info.get_return().value() << " ";
+  }
+  os << " trans_assigned_globals = ";
   for(auto assigned : info.get_assigned_globals())
   {
     os << assigned << " ";
@@ -37,24 +47,22 @@ bool ls_func_info::assign_from(const ls_func_info &info)
   return changed;
 }
 
-const std::unordered_set<dstringt> &ls_func_info::get_assigned_variables() const
+const dstringt_set &ls_func_info::get_assigned_variables() const
 {
   return assigned_variables;
 }
 
-const std::unordered_set<dstringt> &
-ls_func_info::get_directly_assigned_variables() const
+const dstringt_set &ls_func_info::get_directly_assigned_variables() const
 {
   return assigned_variables;
 }
 
-const std::unordered_set<dstringt> &ls_func_info::get_read_variables() const
+const dstringt_set &ls_func_info::get_read_variables() const
 {
   return read_variables;
 }
 
-const std::unordered_set<dstringt> &
-ls_func_info::get_directly_read_variables() const
+const dstringt_set &ls_func_info::get_directly_read_variables() const
 {
   return directly_read_variables;
 }
@@ -65,28 +73,47 @@ bool is_global(dstringt var)
          !strstr(var.c_str(), "return_value");
 }
 
-std::unordered_set<dstringt>
-filter_globals(const std::unordered_set<dstringt> &vars)
+dstringt_set filter_globals(const dstringt_set &vars)
 {
-  std::unordered_set<dstringt> res;
+  dstringt_set res;
   std::copy_if(
     vars.begin(), vars.end(), std::inserter(res, res.end()), is_global);
   return res;
 }
 
-std::unordered_set<dstringt> ls_func_info::get_assigned_globals() const
+dstringt_set combine(dstringt_set vars, dstringt_set &&vars2)
+{
+  vars.insert(vars2.begin(), vars2.end());
+  return vars;
+}
+
+dstringt_set ls_func_info::get_assigned_globals() const
 {
   return filter_globals(assigned_variables);
 }
 
-std::unordered_set<dstringt> ls_func_info::get_read_globals() const
+dstringt_set ls_func_info::get_read_globals() const
 {
   return filter_globals(read_variables);
 }
 
-std::unordered_set<dstringt> get_called_functions(const goto_functiont &func)
+dstringt_set ls_func_info::get_assigned_globals_and_return() const
 {
-  std::unordered_set<dstringt> ret;
+  if(return_var)
+  {
+    return combine(get_assigned_globals(), {return_var.value()});
+  }
+  return get_assigned_globals();
+}
+
+dstringt_set ls_func_info::get_parameters_and_read_globals() const
+{
+  return combine(get_parameters(), get_read_globals());
+}
+
+dstringt_set get_called_functions(const goto_functiont &func)
+{
+  dstringt_set ret;
   for(const auto &instruction : func.body.instructions)
   {
     if(instruction.type == goto_program_instruction_typet::FUNCTION_CALL)
@@ -116,11 +143,11 @@ public:
 
 ls_infot ls_infot::create(const goto_functionst &functions)
 {
-  std::unordered_map<dstringt, std::unordered_set<dstringt>> callers;
-  std::unordered_map<dstringt, std::unordered_set<dstringt>> called_map;
+  std::unordered_map<dstringt, dstringt_set> callers;
+  std::unordered_map<dstringt, dstringt_set> called_map;
   for(const auto &it : functions.function_map)
   {
-    callers.emplace(it.first, std::unordered_set<dstringt>());
+    callers.emplace(it.first, dstringt_set());
   }
 
   for(const auto &it : functions.function_map)
@@ -149,8 +176,14 @@ ls_infot ls_infot::create(const goto_functionst &functions)
   };
 
   auto used_variables = [&sub_used_func](const goto_functiont &func) {
-    std::unordered_set<dstringt> assigned;
-    std::unordered_set<dstringt> read;
+    dstringt_set assigned;
+    dstringt_set read;
+    dstringt_set parameters;
+    optionalt<dstringt> return_var;
+    for(const auto &param : func.parameter_identifiers)
+    {
+      parameters.emplace(param);
+    }
     auto process_right = [&read](const exprt &expr) {
       if(expr.id() == ID_symbol)
       {
@@ -176,6 +209,13 @@ ls_infot ls_infot::create(const goto_functionst &functions)
         {
           auto &lhs = to_symbol_expr(assign.lhs());
           assigned.emplace(lhs.get_identifier());
+          auto str = std::string(lhs.get_identifier().c_str());
+          if(
+            str.size() > strlen("#return_value") &&
+            str.substr(str.size() - strlen("#return_value")) == "#return_value")
+          {
+            return_var = lhs.get_identifier();
+          }
         }
         assign.rhs().visit(visitor);
       }
@@ -184,7 +224,7 @@ ls_infot ls_infot::create(const goto_functionst &functions)
         instruction.apply(process_right);
       }
     }
-    return std::make_tuple(assigned, read);
+    return std::make_tuple(assigned, read, parameters, return_var);
   };
 
   for(const auto &it : functions.function_map)
@@ -198,12 +238,14 @@ ls_infot ls_infot::create(const goto_functionst &functions)
         callers.at(it.first),
         called_map.at(it.first),
         std::get<0>(vars_tuple),
-        std::get<1>(vars_tuple)});
+        std::get<1>(vars_tuple),
+        std::get<2>(vars_tuple),
+        std::get<3>(vars_tuple)});
   }
 
   // now run the worklist
 
-  std::unordered_set<dstringt> in_queue;
+  dstringt_set in_queue;
   std::queue<dstringt> working_queue;
 
   auto push = [&](dstringt func) {
@@ -259,8 +301,12 @@ const ls_func_info &ls_infot::get_func_info(dstringt func_name) const
   return func_infos.at(func_name);
 }
 
-const std::unordered_set<dstringt> &
-ls_infot::get_assigned_variables(dstringt func_name) const
+const dstringt_set &ls_infot::get_assigned_variables(dstringt func_name) const
 {
   return get_func_info(func_name).get_assigned_variables();
+}
+
+bool ls_infot::has_func_info(dstringt func_name) const
+{
+  return func_infos.find(func_name) != func_infos.end();
 }

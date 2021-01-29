@@ -101,6 +101,14 @@ unwindsett::get_limit(const irep_idt &loop_id, unsigned thread_nr) const
   return global_limit;
 }
 
+bool unwindsett::has_specific_limit(const irep_idt &loop_id, unsigned thread_nr)
+  const
+{
+  return thread_loop_map.find(std::pair<irep_idt, unsigned>(
+           loop_id, thread_nr)) != thread_loop_map.end() ||
+         loop_map.find(loop_id) != loop_map.end();
+}
+
 void unwindsett::parse_unwindset_file(const std::string &file_name)
 {
   #ifdef _MSC_VER

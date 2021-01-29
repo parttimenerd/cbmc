@@ -159,6 +159,20 @@ void symex_transition(goto_symext::statet &state)
   symex_transition(state, next, false);
 }
 
+std::ostream &operator<<(std::ostream &os, const recursing_decisiont &abortion)
+{
+  switch(abortion)
+  {
+  case recursing_decisiont::ABORT:
+    return os << "abort";
+  case recursing_decisiont::RESUME:
+    return os << "resume";
+  case recursing_decisiont::FIRST_ABSTRACT_RECURSION:
+    return os << "first_abstract_recursion";
+  }
+  assert(false);
+}
+
 void goto_symext::symex_assert(
   const goto_programt::instructiont &instruction,
   statet &state)

@@ -159,7 +159,7 @@ bool symex_bmct::should_stop_unwind(
   return abort;
 }
 
-bool symex_bmct::get_unwind_recursion(
+recursing_decisiont symex_bmct::get_unwind_recursion(
   const irep_idt &id,
   unsigned thread_nr,
   unsigned unwind)
@@ -178,25 +178,46 @@ bool symex_bmct::get_unwind_recursion(
   // / --unwind options to decide:
   if(abort_unwind_decision.is_unknown())
   {
-    auto limit = getenv("REC") ? std::stoi(getenv("REC"))
-                               : unwindset.get_limit(id, thread_nr);
+    auto limit = getenv("REC") && !unwindset.has_specific_limit(id, thread_nr)
+                   ? std::stoi(getenv("REC"))
+                   : unwindset.get_limit(id, thread_nr);
 
     if(!limit.has_value())
+    {
       abort_unwind_decision = tvt(false);
+    }
     else
-      abort_unwind_decision = tvt(unwind > *limit);
+    {
+      if(ls_stack.abstract_recursion().in_abstract_recursion())
+      {
+        abort_unwind_decision = tvt(
+          unwind >
+          std::min(ls_stack.abstract_recursion().inlining_depth(), *limit));
+      }
+      else
+      {
+        if(ls_stack.abstract_recursion().enabled() && unwind > *limit)
+        {
+          return recursing_decisiont::FIRST_ABSTRACT_RECURSION;
+        }
+        abort_unwind_decision = tvt(unwind > *limit);
+      }
+    }
   }
 
   INVARIANT(
     abort_unwind_decision.is_known(), "unwind decision should be taken by now");
-  bool abort = abort_unwind_decision.is_true();
+  auto abort = abort_unwind_decision.is_true() ? recursing_decisiont::ABORT
+                                               : recursing_decisiont::RESUME;
 
-  if(unwind > 0 || abort)
+  if(unwind > 0 || abort == recursing_decisiont::ABORT)
   {
     const symbolt &symbol = ns.lookup(id);
 
-    log.statistics() << (abort ? "Not unwinding" : "Unwinding") << " recursion "
-                     << symbol.display_name() << " iteration " << unwind;
+    log.statistics() << (abort == recursing_decisiont::ABORT ? "Not unwinding"
+                                                             : "Unwinding")
+                     << " recursion " << symbol.display_name() << " iteration "
+                     << unwind;
 
     if(this_loop_limit != std::numeric_limits<unsigned>::max())
       log.statistics() << " (" << this_loop_limit << " max)";

@@ -37,6 +37,9 @@ public:
   // queries
   optionalt<unsigned> get_limit(const irep_idt &loop, unsigned thread_id) const;
 
+  // not just the global limit
+  bool has_specific_limit(const irep_idt &loop_id, unsigned thread_nr) const;
+
   // read unwindset directives from a file
   void parse_unwindset_file(const std::string &file_name);
 

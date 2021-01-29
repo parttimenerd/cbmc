@@ -84,8 +84,7 @@ void scope::read(dstringt var)
   read_variables.emplace(var);
 }
 
-std::vector<std::tuple<dstringt, bool>>
-get_guard_variables(const guard_exprt &guard)
+guard_variablest get_guard_variables(const guard_exprt &guard, size_t omit_last)
 {
   if(guard.is_true())
   {
@@ -109,11 +108,22 @@ get_guard_variables(const guard_exprt &guard)
     return {func(expr)};
   }
   std::vector<std::tuple<dstringt, bool>> ret;
-  for(auto op : to_and_expr(expr).operands())
-  {
-    ret.push_back(func(op));
-  }
+  auto ops = to_and_expr(expr).operands();
+  PRECONDITION(omit_last < ops.size());
+  std::transform(
+    ops.begin(), ops.end() - omit_last, std::back_inserter(ret), func);
   return ret;
+}
+
+std::ostream &
+operator<<(std::ostream &os, const guard_variablest &guard_variables)
+{
+  for(auto it = guard_variables.begin(); it != guard_variables.end(); it++)
+  {
+    os << (it != guard_variables.begin() ? " " : "")
+       << (std::get<1>(*it) ? "" : "-") << std::get<0>(*it);
+  }
+  return os;
 }
 
 std::vector<dstringt> loop_iteration::assigned_variables() const
@@ -235,11 +245,7 @@ std::ostream &operator<<(std::ostream &os, const loopt &loop)
   os << " | guards ";
   if(!loop.guards.empty())
   {
-    auto vars = get_guard_variables(loop.guards.back());
-    for(auto it = vars.begin(); it != vars.end() - 1; it++)
-    {
-      os << " " << (std::get<1>(*it) ? "" : "-") << std::get<0>(*it);
-    }
+    os << get_guard_variables(loop.guards.back(), 1);
   }
   os << " | lguard ";
   if(!loop.guards.empty())
@@ -516,6 +522,7 @@ void loop_stackt::emit(std::ostream &os)
   {
     os << recursion;
   }
+  os << abstract_recursion();
 }
 
 void loop_stackt::assign(dstringt id)
