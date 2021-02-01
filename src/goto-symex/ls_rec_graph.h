@@ -282,15 +282,16 @@ private:
     if(unfinished_node.has_value())
     {
       throw std::runtime_error(
-        "unfinished node with id " + id_str + " already exists");
+        "error: unfinished node with id " + id_str + " already exists");
     }
     if(contains(id))
     {
-      throw std::runtime_error("already contains a node with id " + id_str);
+      throw std::runtime_error(
+        "error: already contains a node with id " + id_str);
     }
     if(!info.has_func_info(id))
     {
-      throw std::runtime_error("unknown function " + id_str);
+      throw std::runtime_error("error: unknown function " + id_str);
     }
   }
 };

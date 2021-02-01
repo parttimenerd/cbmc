@@ -393,12 +393,6 @@ void symex_target_equationt::convert_assignments(
   std::size_t step_index = 0;
   for(auto &step : SSA_steps)
   {
-    if(step.is_assignment())
-    {
-      std::cerr << "convert assignment               "
-                << step.get_ssa_expr().to_string2()
-                << " ignored=" << step.ignore << "\n";
-    }
     if(step.is_assignment() && !step.ignore && !step.converted)
     {
       log.conditional_output(log.debug(), [&step](messaget::mstreamt &mstream) {

@@ -339,7 +339,10 @@ void goto_symext::symex_function_call_code(
     state.call_stack().top().hidden_function && goto_function.is_hidden();
 
   // see if it's too much
-  if(recursing_decision == recursing_decisiont::ABORT)
+  if(
+    recursing_decision == recursing_decisiont::ABORT ||
+    (recursing_decision == recursing_decisiont::FIRST_ABSTRACT_RECURSION &&
+     ls_stack.abstract_recursion().contains(identifier)))
   {
     framet &frame = state.call_stack().new_frame(state.source, state.guard);
     // preserve locality of local variables
