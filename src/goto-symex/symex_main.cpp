@@ -347,7 +347,6 @@ void goto_symext::symex_with_state(
   const get_goto_functiont &get_goto_function,
   symbol_tablet &new_symbol_table)
 {
-  ls_stack.init(functions);
   // resets the namespace to only wrap a single symbol table, and does so upon
   // destruction of an object of this type; instantiating the type is thus all
   // that's needed to achieve a reset upon exiting this method

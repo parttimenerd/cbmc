@@ -514,6 +514,7 @@ loopt *loop_stackt::get_loop_for_guard_symbol(exprt guard_expr)
 
 void loop_stackt::emit(std::ostream &os)
 {
+  assert(is_initialized);
   for(const auto &loop : loops)
   {
     os << loop;
@@ -527,6 +528,7 @@ void loop_stackt::emit(std::ostream &os)
 
 void loop_stackt::assign(dstringt id)
 {
+  assert(is_initialized);
   if(id.empty())
   {
     throw "empty var";

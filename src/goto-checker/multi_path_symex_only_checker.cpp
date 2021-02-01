@@ -36,7 +36,8 @@ multi_path_symex_only_checkert::multi_path_symex_only_checkert(
       path_storage,
       guard_manager)
 {
-  setup_symex(symex, ns, options, ui_message_handler);
+  setup_symex(
+    symex, ns, options, ui_message_handler, goto_model.get_goto_functions());
 }
 
 incremental_goto_checkert::resultt multi_path_symex_only_checkert::

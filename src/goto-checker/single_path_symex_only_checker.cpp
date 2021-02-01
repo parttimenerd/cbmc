@@ -150,7 +150,8 @@ void single_path_symex_only_checkert::equation_output(
 
 void single_path_symex_only_checkert::setup_symex(symex_bmct &symex)
 {
-  ::setup_symex(symex, ns, options, ui_message_handler);
+  ::setup_symex(
+    symex, ns, options, ui_message_handler, goto_model.get_goto_functions());
 }
 
 void single_path_symex_only_checkert::update_properties(

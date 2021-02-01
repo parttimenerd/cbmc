@@ -420,16 +420,23 @@ class loop_stackt
   optionalt<ls_infot> info;
   std::unique_ptr<ls_recursion_node_dbt> rec_nodes;
 
+  bool is_initialized = false;
+
 public:
   void init(const goto_functionst &functions)
   {
-    info = ls_infot::create(functions);
-    rec_nodes = std::unique_ptr<ls_recursion_node_dbt>{
-      new ls_recursion_node_dbt(info.value())};
+    if(!is_initialized)
+    {
+      info = ls_infot::create(functions);
+      rec_nodes = std::unique_ptr<ls_recursion_node_dbt>{
+        new ls_recursion_node_dbt(info.value())};
+      is_initialized = true;
+    }
   }
 
   const ls_infot get_info() const
   {
+    assert(is_initialized);
     return info.value();
   }
 
@@ -477,6 +484,7 @@ public:
   void
   push_back_loop(dstringt func_id, size_t loop_nr, guard_exprt context_guard)
   {
+    assert(is_initialized);
     auto before_id = current_scope().id;
     push_back_scope();
     loops.emplace_back(
@@ -509,6 +517,7 @@ public:
   void
   push_loop_iteration(bool is_second_to_last_iteration, bool is_last_iteration)
   {
+    assert(is_initialized);
     if(getenv("LOG_LOOP") != nullptr)
     {
       std::cerr << "push iteration " << (current_loop().iterations.size() + 1)

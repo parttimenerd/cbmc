@@ -242,3 +242,8 @@ void symex_bmct::no_body(const irep_idt &identifier)
     log.warning() << log.eom;
   }
 }
+
+void symex_bmct::init_ls_stack(const goto_functionst &functions)
+{
+  ls_stack.init(functions);
+}

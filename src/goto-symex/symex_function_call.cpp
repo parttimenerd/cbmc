@@ -145,7 +145,7 @@ void goto_symext::parameter_assignments(
       auto renamed = state.rename(symbol.symbol_expr(), ns).get();
       if(!renamed.is_constant())
       {
-        argument_call_back(to_symbol_expr(renamed).get_identifier());
+        argument_call_back(lhs.get_identifier());
       }
     }
 

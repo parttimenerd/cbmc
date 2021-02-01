@@ -71,7 +71,8 @@ void setup_symex(
   symex_bmct &,
   const namespacet &,
   const optionst &,
-  ui_message_handlert &);
+  ui_message_handlert &,
+  const goto_functionst &functions);
 
 void slice(
   symex_bmct &,

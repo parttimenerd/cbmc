@@ -180,7 +180,8 @@ void setup_symex(
   symex_bmct &symex,
   const namespacet &ns,
   const optionst &options,
-  ui_message_handlert &ui_message_handler)
+  ui_message_handlert &ui_message_handler,
+  const goto_functionst &functions)
 {
   messaget msg(ui_message_handler);
   const symbolt *init_symbol;
@@ -193,6 +194,7 @@ void setup_symex(
 
   symex.unwindset.parse_unwind(options.get_option("unwind"));
   symex.unwindset.parse_unwindset(options.get_list_option("unwindset"));
+  symex.init_ls_stack(functions);
 }
 
 void slice(
