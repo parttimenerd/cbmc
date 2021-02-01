@@ -504,8 +504,7 @@ protected:
     const goto_functionst::goto_functiont &goto_function,
     statet &state,
     const exprt::operandst &arguments,
-    const std::function<void(dstringt)> &argument_call_back = [](dstringt x) {
-    });
+    const std::function<void(exprt)> &argument_call_back = [](exprt x) {});
 
   // exceptions
   /// Symbolically execute a THROW instruction

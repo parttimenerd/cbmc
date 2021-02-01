@@ -20,6 +20,8 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <util/prefix.h>
 #include <util/range.h>
 
+#include <utility>
+
 #include "expr_skeleton.h"
 #include "goto-programs/remove_returns.h"
 #include "path_storage.h"
@@ -43,7 +45,7 @@ void goto_symext::parameter_assignments(
   const goto_functionst::goto_functiont &goto_function,
   statet &state,
   const exprt::operandst &arguments,
-  const std::function<void(dstringt)> &argument_call_back)
+  const std::function<void(exprt)> &argument_call_back)
 {
   // iterates over the arguments
   exprt::operandst::const_iterator it1=arguments.begin();
@@ -143,10 +145,7 @@ void goto_symext::parameter_assignments(
       symex_assignt{state, assignment_type, ns, symex_config, target}
         .assign_rec(lhs, expr_skeletont{}, rhs, lhs_conditions);
       auto renamed = state.rename(symbol.symbol_expr(), ns).get();
-      if(!renamed.is_constant())
-      {
-        argument_call_back(lhs.get_identifier());
-      }
+      argument_call_back(renamed);
     }
 
     if(it1!=arguments.end())
@@ -166,7 +165,7 @@ void goto_symext::parameter_assignments(
         ns.lookup(function_identifier).mode,
         state.symbol_table);
       va_arg.is_parameter = true;
-      argument_call_back(va_arg.name);
+      argument_call_back(va_arg.symbol_expr());
       state.call_stack().top().parameter_names.push_back(va_arg.name);
 
       symex_assign(state, va_arg.symbol_expr(), *it1);
@@ -221,10 +220,58 @@ void goto_symext::symex_function_call_symbol(
     symex_function_call_code(get_goto_function, state, code);
 }
 
+/// Assigns the expression to a new variable if it is a constant
+/// else expects that it is a symbol_exprt and returns the symbols name
+dstringt assign_to_new_if_constant(
+  goto_symex_statet &state,
+  namespacet &ns,
+  exprt expr,
+  irep_idt mode)
+{
+  if(expr.is_constant())
+  {
+    auto renamed = state.rename(expr, ns);
+    auto fresh = get_fresh_aux_symbol(
+      renamed.get().type(),
+      "oa_constant",
+      "",
+      state.source.pc->source_location,
+      mode,
+      state.symbol_table);
+    auto fresh_symbol =
+      fresh
+        .symbol_expr(); // symex.clean_expr(fresh.symbol_expr(), state, false);
+    exprt::operandst lhs_conditions;
+    auto lhs = state.rename_ssa<L1>(ssa_exprt{fresh_symbol}, ns).get();
+    auto ret = state.assignment(lhs, expr, ns, true, true);
+    const guardt guard(true_exprt(), state.guard_manager);
+    auto rhs_ssa = state.rename(expr, ns).get();
+    state.symex_target->assignment(
+      guard.as_expr(),
+      lhs,
+      lhs,
+      fresh_symbol,
+      rhs_ssa,
+      state.source,
+      symex_targett::assignment_typet::HIDDEN);
+    return lhs.get_identifier();
+  }
+  return to_symbol_expr(expr).get_identifier();
+}
+
 dstringt resolve(goto_symex_statet &state, namespacet &ns, dstringt var)
 {
-  auto renamed = state.rename(ns.lookup(var).symbol_expr(), ns).get();
-  return to_symbol_expr(renamed).get_identifier();
+  auto argument = state.rename(ns.lookup(var).symbol_expr(), ns).get();
+  if(argument.id() != ID_symbol)
+  {
+    // we just assign it to a new variable
+    return assign_to_new_if_constant(
+      state, ns, argument, ns.get_symbol_table().begin()->second.mode);
+  }
+  else
+  {
+    return to_symbol_expr(argument).get_identifier();
+  }
 }
 
 void assign_unknown(
@@ -319,9 +366,7 @@ void goto_symext::symex_function_call_code(
     // … maybe rewrite it in the future
     if(ls_stack.abstract_recursion().enabled())
     {
-      parameter_assignments(
-        identifier, goto_function, state, call.arguments(), [](dstringt arg) {
-        });
+      parameter_assignments(identifier, goto_function, state, call.arguments());
       ls_stack.abstract_recursion().create_rec_child(
         identifier, state.guard, resolve, assign_unknown);
       target.function_return(
@@ -347,9 +392,10 @@ void goto_symext::symex_function_call_code(
       path_storage.add_function_loops(identifier, goto_function.body);
       //frame.loops_info = path_storage.get_loop_analysis(identifier);
     }
-
-    auto argument_call_back = [&](dstringt argument) {
-      ls_stack.current_aborted_recursion()->assign_parameter(argument);
+    auto argument_call_back = [&](exprt expr) {
+      auto var = assign_to_new_if_constant(
+        state, ns, std::move(expr), ns.lookup(identifier).mode);
+      ls_stack.current_aborted_recursion()->assign_parameter(var);
     };
 
     // assign actuals to formal parameters
