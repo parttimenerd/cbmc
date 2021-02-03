@@ -25,8 +25,8 @@ Debugging output
 | LOG_READ | log read variables
 | LOG_REC  | log stuff related to aborted recursions
 | REC      | depth of recursion for a function (e.g. REC=0 → online inline the first occurrence in the depth tree) 
-| ENABLE_REC_GRAPH   | enable abstract calls (same as passing REC_GRAPH_INLINING without an argument)
-| REC_GRAPH_INLINING | depth of recursion in abstract calls, default is 0
+| ENABLE_REC_GRAPH   | enable abstract calls (same as passing REC_GRAPH_INLINING without an argument) with abstract recursions
+| REC_GRAPH_INLINING | depth of recursion in abstract calls, default is 0 → no inlining in abstract calls
 
 About
 =====

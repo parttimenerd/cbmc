@@ -255,6 +255,14 @@ public:
            lvalue.id() == "zero_string_length" || lvalue.id() == ID_constant;
   }
 
+  dstringt resolve(namespacet &ns, dstringt var);
+
+  void assign_unknown(namespacet &ns, dstringt var);
+
+  /// Assigns the expression to a new variable if it is a constant
+  /// else expects that it is a symbol_exprt and returns the symbols name
+  dstringt assign_to_new_if_constant(namespacet &ns, exprt expr, irep_idt mode);
+
 private:
   std::function<std::size_t(const irep_idt &)> fresh_l2_name_provider;
 

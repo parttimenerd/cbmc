@@ -32,7 +32,7 @@ struct framet
   goto_programt::const_targett end_of_function;
   exprt return_value = nil_exprt();
   bool hidden_function = false;
-  bool end_abstract_recursion = false;
+  bool base_of_abstract_recursion = false;
 
   symex_level1t old_level1;
 

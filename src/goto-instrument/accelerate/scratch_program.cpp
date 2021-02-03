@@ -55,11 +55,11 @@ bool scratch_programt::check_sat(bool do_slice, guard_managert &guard_manager)
 
   symex.symex_with_state(
     *symex_state,
-    functions,
     [this](const irep_idt &key) -> const goto_functionst::goto_functiont & {
       return functions.function_map.at(key);
     },
-    symex_symbol_table);
+    symex_symbol_table,
+    true);
 
   if(do_slice)
   {

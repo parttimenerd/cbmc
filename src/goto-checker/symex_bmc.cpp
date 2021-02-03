@@ -182,26 +182,20 @@ recursing_decisiont symex_bmct::get_unwind_recursion(
                    ? std::stoi(getenv("REC"))
                    : unwindset.get_limit(id, thread_nr);
 
-    if(!limit.has_value())
+    if(ls_stack.abstract_recursion().is_in_abstract_processing())
+    {
+      abort_unwind_decision = tvt(
+        unwind >= std::min(
+                    limit.value_or(std::numeric_limits<unsigned>::max()),
+                    ls_stack.abstract_recursion().inlining_depth()));
+    }
+    else if(!limit.has_value())
     {
       abort_unwind_decision = tvt(false);
     }
     else
     {
-      if(ls_stack.abstract_recursion().in_abstract_recursion())
-      {
-        abort_unwind_decision = tvt(
-          unwind >
-          std::min(ls_stack.abstract_recursion().inlining_depth(), *limit));
-      }
-      else
-      {
-        if(ls_stack.abstract_recursion().enabled() && unwind > *limit)
-        {
-          return recursing_decisiont::FIRST_ABSTRACT_RECURSION;
-        }
-        abort_unwind_decision = tvt(unwind > *limit);
-      }
+      abort_unwind_decision = tvt(unwind > *limit);
     }
   }
 

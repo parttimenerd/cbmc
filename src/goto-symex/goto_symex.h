@@ -31,8 +31,7 @@ class typet;
 enum class recursing_decisiont
 {
   ABORT,
-  RESUME,
-  FIRST_ABSTRACT_RECURSION
+  RESUME
 };
 
 std::ostream &operator<<(std::ostream &os, const recursing_decisiont &abortion);
@@ -153,10 +152,23 @@ public:
   ///   symbolic execution
   virtual void symex_with_state(
     statet &state,
-    const goto_functionst &functions,
     const get_goto_functiont &get_goto_functions,
-    symbol_tablet &new_symbol_table);
+    symbol_tablet &new_symbol_table,
+    bool finish_loopstack = true);
 
+protected:
+  void post_process_ls_stack(
+    statet &old_state,
+    const get_goto_functiont &get_goto_functions,
+    symbol_tablet &nsymbol_table);
+
+  void process_function(
+    requested_functiont func,
+    statet &old_state,
+    const get_goto_functiont &get_goto_functions,
+    symbol_tablet &symbol_table);
+
+public:
   /// \brief Set when states are pushed onto the workqueue
   /// If this flag is set at the end of a symbolic execution run, it means that
   /// symbolic execution has been paused because we encountered a GOTO
@@ -199,8 +211,9 @@ protected:
   /// the beginning of the entry point function.
   /// \param get_goto_function: producer for GOTO functions
   /// \return Initialized symex state.
-  std::unique_ptr<statet>
-  initialize_entry_point_state(const get_goto_functiont &get_goto_function);
+  std::unique_ptr<statet> initialize_entry_point_state(
+    const get_goto_functiont &get_goto_function,
+    dstringt entry_point_id = goto_functionst::entry_point());
 
   /// Invokes symex_step and verifies whether additional threads can be
   /// executed.
@@ -456,6 +469,7 @@ protected:
 
   /// Symbolically execute a END_FUNCTION instruction.
   /// \param state: Symbolic execution state for current instruction
+  /// \throws bring_back_exceptiont if the frame is marked as the base frame of an abstract function call
   virtual void symex_end_of_function(statet &);
 
   /// Symbolic execution of a call to a function call.

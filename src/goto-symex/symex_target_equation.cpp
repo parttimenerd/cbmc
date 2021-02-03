@@ -393,13 +393,12 @@ void symex_target_equationt::convert_assignments(
   std::size_t step_index = 0;
   for(auto &step : SSA_steps)
   {
-    if(step.is_assignment() && !step.ignore && !step.converted)
+    if(step.is_assignment() && !step.ignore_in_conversion())
     {
       log.conditional_output(log.debug(), [&step](messaget::mstreamt &mstream) {
         step.output(mstream);
         mstream << messaget::eom;
       });
-
       decision_procedure.set_to_true(step.cond_expr);
       step.converted = true;
       with_solver_hardness(
@@ -415,7 +414,7 @@ void symex_target_equationt::convert_decls(
   std::size_t step_index = 0;
   for(auto &step : SSA_steps)
   {
-    if(step.is_decl() && !step.ignore && !step.converted)
+    if(step.is_decl() && !step.ignore_in_conversion())
     {
       // The result is not used, these have no impact on
       // the satisfiability of the formula.
@@ -434,7 +433,7 @@ void symex_target_equationt::convert_guards(
   std::size_t step_index = 0;
   for(auto &step : SSA_steps)
   {
-    if(step.ignore)
+    if(step.ignore && !step.part_of_abstraction)
       step.guard_handle = false_exprt();
     else
     {
@@ -459,7 +458,7 @@ void symex_target_equationt::convert_assumptions(
   {
     if(step.is_assume())
     {
-      if(step.ignore)
+      if(step.ignore && !step.part_of_abstraction)
         step.cond_handle = true_exprt();
       else
       {
@@ -487,7 +486,7 @@ void symex_target_equationt::convert_goto_instructions(
   {
     if(step.is_goto())
     {
-      if(step.ignore)
+      if(step.ignore && !step.part_of_abstraction)
         step.cond_handle = true_exprt();
       else
       {
@@ -512,7 +511,7 @@ void symex_target_equationt::convert_constraints(
   std::size_t step_index = 0;
   for(auto &step : SSA_steps)
   {
-    if(step.is_constraint() && !step.ignore && !step.converted)
+    if(step.is_constraint() && !step.ignore_in_conversion())
     {
       log.conditional_output(log.debug(), [&step](messaget::mstreamt &mstream) {
         step.output(mstream);
@@ -550,7 +549,7 @@ void symex_target_equationt::convert_assertions(
       if(step.is_assert() && step.converted)
         step.hidden = true;
 
-      if(step.is_assert() && !step.ignore && !step.converted)
+      if(step.is_assert() && !step.ignore_in_conversion())
       {
         step.converted = true;
         decision_procedure.set_to_false(step.cond_expr);
@@ -588,7 +587,7 @@ void symex_target_equationt::convert_assertions(
     if(step.is_assert() && step.converted)
       step.hidden = true;
 
-    if(step.is_assert() && !step.ignore && !step.converted)
+    if(step.is_assert() && !step.ignore_in_conversion())
     {
       step.converted = true;
 
@@ -647,7 +646,7 @@ void symex_target_equationt::convert_function_calls(
   std::size_t step_index = 0;
   for(auto &step : SSA_steps)
   {
-    if(!step.ignore)
+    if(!step.ignore || step.part_of_abstraction)
     {
       and_exprt::operandst conjuncts;
       step.converted_function_arguments.reserve(step.ssa_function_arguments.size());
@@ -686,7 +685,7 @@ void symex_target_equationt::convert_io(decision_proceduret &decision_procedure)
   std::size_t step_index = 0;
   for(auto &step : SSA_steps)
   {
-    if(!step.ignore)
+    if(!step.ignore || step.part_of_abstraction)
     {
       and_exprt::operandst conjuncts;
       for(const auto &arg : step.io_args)

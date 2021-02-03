@@ -130,6 +130,11 @@ public:
     return type == goto_trace_stept::typet::ATOMIC_END;
   }
 
+  bool ignore_in_conversion() const
+  {
+    return (ignore && !part_of_abstraction) || converted;
+  }
+
   /// Returns the property ID if this is a step resulting from an ASSERT, or
   /// builds a unique name for an unwinding assertion.
   irep_idt get_property_id() const;
@@ -176,6 +181,9 @@ public:
 
   // for incremental conversion
   bool converted = false;
+
+  // used to include abstract recursions in the output
+  bool part_of_abstraction = false;
 
   SSA_stept(
     const symex_targett::sourcet &_source,

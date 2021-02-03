@@ -40,17 +40,18 @@ public:
 
 protected:
   const name_mappingt input;
-  name_mappingt output;
+  const name_mappingt output;
 
-  ls_recursion_baset(const ls_func_info &info, name_mappingt input)
-    : info(info), func_name(info.function_id), input(std::move(input))
+  ls_recursion_baset(
+    const ls_func_info &info,
+    name_mappingt input,
+    name_mappingt output)
+    : info(info),
+      func_name(info.function_id),
+      input(std::move(input)),
+      output(output)
   {
   }
-
-public:
-  /// get variable base names of possibly modified global variables
-  /// (non local variables) and the return value
-  std::unordered_set<dstringt> get_written() const;
 };
 
 /// an aborted recursion that references a function
@@ -60,24 +61,21 @@ class ls_recursion_childt : public ls_recursion_baset
   const size_t id;
   const guardt guard;
 
-  /// parent abstract method if this occurred inside the evaluation of one
-  const optionalt<dstringt> parent;
-
   ls_recursion_childt(
     size_t id,
     const ls_func_info &info,
     name_mappingt input,
-    const guardt &guard,
-    optionalt<dstringt> parent = optionalt<dstringt>());
+    name_mappingt output,
+    const guardt &guard)
+    : ls_recursion_baset(info, std::move(input), std::move(output)),
+      id(id),
+      guard(guard)
+  {
+  }
 
 public:
   friend std::ostream &
   operator<<(std::ostream &os, const ls_recursion_childt &child);
-
-  /// creates an unknown variable for each written global and return value
-  void assign_written(
-    const resolvet &resolve,
-    const assign_unknownt &assign_unknown);
 
   /// creates a new rec child
   ///
@@ -87,52 +85,66 @@ public:
     const ls_func_info &info,
     const guardt guard,
     const resolvet &resolve,
-    optionalt<dstringt> abstract_parent);
+    const assign_unknownt &assign_unknown);
 };
 
 /// an abstract recursive function
 /// create via the create method and finish it via the assign_written method
 class ls_recursion_nodet : public ls_recursion_baset
 {
-  const guardt current_guard;
-  const name_mappingt prev_input_mapping;
-
 public:
   ls_recursion_nodet(
     const ls_func_info &info,
     name_mappingt input,
-    name_mappingt prev_input_mapping,
-    const guardt &current_guard);
+    name_mappingt output)
+    : ls_recursion_baset(info, std::move(input), std::move(output))
+  {
+  }
 
 public:
   friend std::ostream &
   operator<<(std::ostream &os, const ls_recursion_nodet &nodet);
+};
 
-  /// resolves the values of written globals and the return value, assigns them unknown values
-  /// and assigns the stack
-  void assign_written(
-    const resolvet &resolve,
-    const assign_unknownt &assign_unknown,
-    const set_guardt &set_guard);
+struct requested_functiont
+{
+  const symbol_exprt identifier;
 
-  const name_mappingt &get_prev_input_mapping() const
+  dstringt name() const
   {
-    return prev_input_mapping;
+    return identifier.get_identifier();
   }
 
-  /// creates a new node
-  ///
-  /// \param assign_unknown: used to create an unknown variable for each read global or parameter
-  static ls_recursion_nodet create(
-    const ls_func_info &info,
-    guardt current_guard,
-    const resolvet &resolve,
-    const assign_unknownt &assign_unknown,
-    const set_guardt &set_guard);
-
-  const guardt &get_prev_guard() const
+  bool operator==(const requested_functiont &rhs) const
   {
-    return current_guard;
+    return identifier == rhs.identifier;
+  }
+
+  bool operator!=(const requested_functiont &rhs) const
+  {
+    return !(rhs == *this);
+  }
+};
+
+// NOLINTNEXTLINE(readability/namespace)
+namespace std
+{
+template <>
+// NOLINTNEXTLINE(readability/identifiers)
+struct hash<requested_functiont>
+{
+  std::size_t operator()(const requested_functiont &func) const
+  {
+    return std::hash<dstringt>{}(func.name());
+  }
+};
+} // namespace std
+
+class bring_back_exceptiont : public std::exception
+{
+public:
+  bring_back_exceptiont() : std::exception()
+  {
   }
 };
 
@@ -142,9 +154,11 @@ class ls_recursion_node_dbt
   const ls_infot &info;
   std::unordered_map<dstringt, ls_recursion_nodet> nodes;
 
-  optionalt<ls_recursion_nodet *> unfinished_node;
-
   std::vector<ls_recursion_childt> rec_children;
+
+  std::unordered_set<requested_functiont> requested_funcs;
+
+  bool in_abstract_processing = false;
 
 public:
   explicit ls_recursion_node_dbt(const ls_infot &info) : info(info)
@@ -152,119 +166,51 @@ public:
   }
 
   void create_rec_child(
-    dstringt func_name,
+    requested_functiont func,
     const guardt &guard,
     const resolvet &resolve,
     const assign_unknownt &assign_unknown)
   {
-    assert(enabled());
-    create_rec_child(
-      func_name,
-      guard,
-      resolve,
-      resolve,
-      assign_unknown,
-      unfinished_node.has_value()
-        ? optionalt<dstringt>{unfinished_node.value()->func_name}
-        : optionalt<dstringt>());
-  }
-
-protected:
-  /// \param resolve: used to resolve parameters and read globals variables
-  /// \param assign_unknown: used to create an unknown variable for each written global and return value
-  void create_rec_child(
-    dstringt func_name,
-    const guardt &guard,
-    const resolvet &initial_resolve,
-    const resolvet &resolve,
-    const assign_unknownt &assign_unknown,
-    optionalt<dstringt> abstract_parent)
-  {
     auto child = ls_recursion_childt::create(
       rec_children.size(),
-      info.get_func_info(func_name),
+      info.get_func_info(func.name()),
       guard,
-      initial_resolve,
-      std::move(abstract_parent));
-    child.assign_written(resolve, assign_unknown);
-    rec_children.push_back(std::move(child));
-  }
-
-public:
-  bool contains(const dstringt func_name) const
-  {
-    return nodes.find(func_name) != nodes.end() &&
-           (!unfinished_node.has_value() ||
-            unfinished_node.value()->func_name == func_name);
-  }
-
-  /// Starts an unfinished node
-  /// throws a runtime_error if there is already an unfinished node or if a node with this id already exists
-  ///
-  /// \param resolve: resolves read globals and parameters
-  void begin_node(
-    dstringt func_name,
-    const guardt &current_guard,
-    const resolvet &resolve,
-    const assign_unknownt &assign_unknown,
-    const set_guardt &set_guard)
-  {
-    assert(enabled());
-    check_begin_node(func_name);
-    nodes.emplace(
-      func_name,
-      ls_recursion_nodet::create(
-        info.get_func_info(func_name),
-        current_guard,
-        resolve,
-        assign_unknown,
-        set_guard));
-    unfinished_node = {&nodes.at(func_name)};
-  }
-
-  /// finishes the current unfinished node and creates a rec child
-  void finish_node(
-    dstringt func_name,
-    const resolvet &resolve,
-    const assign_unknownt &assign_unknown,
-    const set_guardt &set_guard)
-  {
-    assert(func_name == unfinished_node.value()->func_name);
-    unfinished_node.value()->assign_written(resolve, assign_unknown, set_guard);
-    create_rec_child(
-      func_name,
-      unfinished_node.value()->get_prev_guard(),
-      [&](dstringt var) {
-        return unfinished_node.value()->get_prev_input_mapping().at(var);
-      },
       resolve,
-      assign_unknown,
-      {});
-    unfinished_node = {};
+      assign_unknown);
+    rec_children.push_back(std::move(child));
+    request(func);
   }
+
+  void request(const requested_functiont &func)
+  {
+    if(requested_funcs.find(func) == requested_funcs.end() && enabled())
+    {
+      requested_funcs.emplace(func);
+    }
+  }
+
+  const std::unordered_set<requested_functiont> &requested() const
+  {
+    return requested_funcs;
+  }
+
+  /// setup the current frame before calling it
+  /// it sets all needed variables, runs the passed method and records the values of variables
+  void process_requested(
+    requested_functiont func,
+    std::function<void()> state_processor,
+    const resolvet &resolve,
+    const assign_unknownt &assign_unknown);
 
   friend std::ostream &
   operator<<(std::ostream &os, const ls_recursion_node_dbt &dbt);
-
-  virtual ~ls_recursion_node_dbt()
-  {
-    if(unfinished_node.has_value())
-    {
-      std::cerr << "error: unfinished_node with id "
-                << unfinished_node.value()->func_name << "\n";
-    }
-  }
 
   const std::unordered_map<dstringt, ls_recursion_nodet> &get_nodes() const
   {
     return nodes;
   }
 
-  bool in_abstract_recursion() const
-  {
-    return unfinished_node.has_value();
-  }
-
+  /// enabled === output abstract recursions
   bool enabled() const
   {
     return is_recursion_graph_enabled();
@@ -275,24 +221,9 @@ public:
     return recursion_graph_inlining();
   }
 
-private:
-  void check_begin_node(dstringt id) const
+  bool is_in_abstract_processing() const
   {
-    std::string id_str = id.c_str();
-    if(unfinished_node.has_value())
-    {
-      throw std::runtime_error(
-        "error: unfinished node with id " + id_str + " already exists");
-    }
-    if(contains(id))
-    {
-      throw std::runtime_error(
-        "error: already contains a node with id " + id_str);
-    }
-    if(!info.has_func_info(id))
-    {
-      throw std::runtime_error("error: unknown function " + id_str);
-    }
+    return in_abstract_processing;
   }
 };
 

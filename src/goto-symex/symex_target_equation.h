@@ -251,7 +251,7 @@ public:
   {
     return narrow_cast<std::size_t>(std::count_if(
       SSA_steps.begin(), SSA_steps.end(), [](const SSA_stept &step) {
-        return step.is_assert() && !step.ignore && !step.converted;
+        return step.is_assert() && !step.ignore_in_conversion();
       }));
   }
 
@@ -259,7 +259,7 @@ public:
   {
     return narrow_cast<std::size_t>(std::count_if(
       SSA_steps.begin(), SSA_steps.end(), [](const SSA_stept &step) {
-        return step.ignore;
+        return step.ignore && !step.part_of_abstraction;
       }));
   }
 

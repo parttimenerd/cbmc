@@ -167,8 +167,6 @@ std::ostream &operator<<(std::ostream &os, const recursing_decisiont &abortion)
     return os << "abort";
   case recursing_decisiont::RESUME:
     return os << "resume";
-  case recursing_decisiont::FIRST_ABSTRACT_RECURSION:
-    return os << "first_abstract_recursion";
   }
   assert(false);
 }
@@ -343,9 +341,9 @@ void goto_symext::symex_threaded_step(
 
 void goto_symext::symex_with_state(
   statet &state,
-  const goto_functionst &functions,
-  const get_goto_functiont &get_goto_function,
-  symbol_tablet &new_symbol_table)
+  const get_goto_functiont &get_goto_functions,
+  symbol_tablet &new_symbol_table,
+  bool finish_loopstack)
 {
   // resets the namespace to only wrap a single symbol table, and does so upon
   // destruction of an object of this type; instantiating the type is thus all
@@ -380,16 +378,21 @@ void goto_symext::symex_with_state(
 
   PRECONDITION(state.call_stack().top().end_of_function->is_end_function());
 
-  symex_threaded_step(state, get_goto_function);
+  symex_threaded_step(state, get_goto_functions);
   if(should_pause_symex)
     return;
   while(!state.call_stack().empty())
   {
     state.has_saved_jump_target = false;
     state.has_saved_next_instruction = false;
-    symex_threaded_step(state, get_goto_function);
+    symex_threaded_step(state, get_goto_functions);
     if(should_pause_symex)
       return;
+  }
+
+  if(finish_loopstack)
+  {
+    post_process_ls_stack(state, get_goto_functions, state.symbol_table);
   }
 
   // Clients may need to construct a namespace with both the names in
@@ -397,6 +400,100 @@ void goto_symext::symex_with_state(
   // execution, so return the names generated through symbolic execution
   // through `new_symbol_table`.
   new_symbol_table = state.symbol_table;
+}
+
+void goto_symext::post_process_ls_stack(
+  goto_symext::statet &old_state,
+  const get_goto_functiont &get_goto_functions,
+  symbol_tablet &symbol_table)
+{
+  auto step_count = old_state.symex_target->SSA_steps.size();
+  for(const auto &func : ls_stack.abstract_recursion().requested())
+  {
+    process_function(func, old_state, get_goto_functions, symbol_table);
+  }
+  auto it = old_state.symex_target->SSA_steps.begin();
+  while(step_count > 0)
+  {
+    it++;
+    step_count--;
+  }
+  while(it != old_state.symex_target->SSA_steps.end())
+  {
+    it->part_of_abstraction = true;
+    it++;
+  }
+}
+
+void goto_symext::process_function(
+  requested_functiont func,
+  statet &old_state,
+  const get_goto_functiont &get_goto_functions,
+  symbol_tablet &symbol_table)
+{
+  statet state{old_state, &target};
+
+  //auto &function = get_goto_functions(func);
+  //functions
+  code_function_callt call{func.identifier};
+
+  const goto_functiont &goto_function = get_goto_functions(func.name());
+
+  framet &frame = state.call_stack().new_frame(state.source, state.guard);
+
+  if(symex_config.complexity_limits_active)
+  {
+    // Analyzes loops if required.
+    path_storage.add_function_loops(func.name(), goto_function.body);
+    frame.loops_info = path_storage.get_loop_analysis(func.name());
+  }
+
+  // preserve locality of local variables
+  // locality(func.name(), state, path_storage, goto_function, ns);
+
+  // assign actuals to formal parameters
+  //parameter_assignments(func.name(), goto_function, state, arguments);
+
+  frame.end_of_function = --goto_function.body.instructions.end();
+  frame.return_value = call.lhs();
+  frame.function_identifier = func.name();
+  frame.hidden_function = goto_function.is_hidden();
+
+  frame.loop_iterations[func.name()].is_recursion = true;
+  for(auto &item : frame.loop_iterations)
+  {
+    item.second.count = 0;
+  }
+  frame.loop_iterations[func.name()].count = 0;
+  //frame.loop_iterations[func.name()].count++;
+  frame.base_of_abstract_recursion = true;
+
+  state.source.function_id = func.name();
+
+  symex_transition(state, goto_function.body.instructions.begin(), false);
+  ls_stack.abstract_recursion().process_requested(
+    func,
+    [&]() {
+      if(getenv("LOG_REC"))
+      {
+        std::cerr << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ start "
+                  << func.name() << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
+      }
+      try
+      {
+        symex_with_state(state, get_goto_functions, symbol_table, false);
+      }
+      catch(const bring_back_exceptiont &)
+      {
+      }
+      if(getenv("LOG_REC"))
+      {
+        std::cerr << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ end "
+                  << func.name() << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
+      }
+    },
+    [&](dstringt var) { return state.resolve(ns, var); },
+    [&](dstringt var) { state.assign_unknown(ns, var); });
 }
 
 void goto_symext::resume_symex_from_saved_state(
@@ -416,13 +513,13 @@ void goto_symext::resume_symex_from_saved_state(
 
   // Do NOT do the same initialization that `symex_with_state` does for a
   // fresh state, as that would clobber the saved state's program counter
-  symex_with_state(state, functions, get_goto_function, new_symbol_table);
+  symex_with_state(state, get_goto_function, new_symbol_table, true);
 }
 
 std::unique_ptr<goto_symext::statet> goto_symext::initialize_entry_point_state(
-  const get_goto_functiont &get_goto_function)
+  const get_goto_functiont &get_goto_function,
+  dstringt entry_point_id)
 {
-  const irep_idt entry_point_id = goto_functionst::entry_point();
 
   const goto_functionst::goto_functiont *start_function;
   try
@@ -493,7 +590,7 @@ void goto_symext::symex_from_entry_point_of(
   const auto symex_start = std::chrono::steady_clock::now();
   auto state = initialize_entry_point_state(get_goto_function);
 
-  symex_with_state(*state, functions, get_goto_function, new_symbol_table);
+  symex_with_state(*state, get_goto_function, new_symbol_table, true);
 
   const auto symex_stop = std::chrono::steady_clock::now();
   std::chrono::duration<double> symex_runtime =

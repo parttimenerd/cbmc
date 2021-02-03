@@ -28,44 +28,11 @@ std::ostream &operator<<(std::ostream &os, const name_mappingt &mapping)
   return os;
 }
 
-std::unordered_set<dstringt> ls_recursion_baset::get_written() const
-{
-  return info.get_assigned_globals_and_return();
-}
-
 std::ostream &operator<<(std::ostream &os, const ls_recursion_childt &child)
 {
-  if(child.parent)
-  {
-    os << "c parent of " << child.id << " is " << *child.parent << "\n";
-  }
   return os << "c rec child " << child.id << " " << child.func_name
             << " | input " << child.input << " | output " << child.output
             << " | constraint " << get_guard_variables(child.guard);
-}
-
-ls_recursion_childt::ls_recursion_childt(
-  size_t id,
-  const ls_func_info &info,
-  name_mappingt input,
-  const guardt &guard,
-  optionalt<dstringt> parent)
-  : ls_recursion_baset(info, std::move(input)),
-    id(id),
-    guard(guard),
-    parent(std::move(parent))
-{
-}
-
-void ls_recursion_childt::assign_written(
-  const resolvet &resolve,
-  const assign_unknownt &assign_unknown)
-{
-  for(auto var : get_written())
-  {
-    assign_unknown(var);
-    output.emplace(var, resolve(var));
-  }
 }
 
 ls_recursion_childt ls_recursion_childt::create(
@@ -73,67 +40,21 @@ ls_recursion_childt ls_recursion_childt::create(
   const ls_func_info &info,
   const guardt guard,
   const resolvet &resolve,
-  optionalt<dstringt> abstract_parent)
+  const assign_unknownt &assign_unknown)
 {
-  return {
-    id,
-    info,
-    create_mapping(info.get_parameters_and_read_globals(), resolve),
-    guard,
-    abstract_parent};
+  auto input = create_mapping(info.get_parameters_and_read_globals(), resolve);
+  auto output =
+    create_mapping(info.get_assigned_globals_and_return(), [&](dstringt var) {
+      assign_unknown(var);
+      return resolve(var);
+    });
+  return {id, info, input, output, guard};
 }
 
 std::ostream &operator<<(std::ostream &os, const ls_recursion_nodet &node)
 {
   return os << "c rec node " << node.func_name << " | input " << node.input
             << " | output " << node.output;
-}
-
-ls_recursion_nodet::ls_recursion_nodet(
-  const ls_func_info &info,
-  name_mappingt input,
-  name_mappingt prev_input_mapping,
-  const guardt &current_guard)
-  : ls_recursion_baset(info, std::move(input)),
-    current_guard(current_guard),
-    prev_input_mapping(std::move(prev_input_mapping))
-{
-}
-
-void ls_recursion_nodet::assign_written(
-  const resolvet &resolve,
-  const assign_unknownt &assign_unknown,
-  const set_guardt &set_guard)
-{
-  for(auto var : get_written())
-  {
-    output.emplace(var, resolve(var));
-    assign_unknown(var);
-  }
-  set_guard(current_guard);
-}
-
-ls_recursion_nodet ls_recursion_nodet::create(
-  const ls_func_info &info,
-  const guardt cur_guard,
-  const resolvet &resolve,
-  const assign_unknownt &assign_unknown,
-  const set_guardt &set_guard)
-{
-  true_exprt true_expr;
-  guard_expr_managert manager; // not used in the implementation
-  set_guard(guardt{true_expr, manager});
-  auto prev = create_mapping(info.get_parameters_and_read_globals(), resolve);
-  return {
-    info,
-    create_mapping(
-      info.get_parameters_and_read_globals(),
-      [&](dstringt var) {
-        assign_unknown(var);
-        return resolve(var);
-      }),
-    prev,
-    cur_guard};
 }
 
 std::ostream &operator<<(std::ostream &os, const ls_recursion_node_dbt &dbt)
@@ -147,6 +68,31 @@ std::ostream &operator<<(std::ostream &os, const ls_recursion_node_dbt &dbt)
     os << child << "\n";
   }
   return os;
+}
+
+void ls_recursion_node_dbt::process_requested(
+  requested_functiont func,
+  std::function<void()> state_processor,
+  const resolvet &resolve,
+  const assign_unknownt &assign_unknown)
+{
+  in_abstract_processing = true;
+  if(nodes.find(func.name()) != nodes.end())
+  {
+    return;
+  }
+  auto &func_info = info.get_func_info(func.name());
+  auto input = create_mapping(
+    func_info.get_parameters_and_read_globals(), [&](dstringt var) {
+      assign_unknown(var);
+      return resolve(var);
+    });
+  state_processor();
+  auto output =
+    create_mapping(func_info.get_assigned_globals_and_return(), resolve);
+  ls_recursion_nodet node{func_info, std::move(input), std::move(output)};
+  nodes.emplace(func.name(), std::move(node));
+  in_abstract_processing = false;
 }
 
 bool is_recursion_graph_enabled()

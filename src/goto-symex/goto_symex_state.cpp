@@ -26,6 +26,7 @@ Author: Daniel Kroening, kroening@kroening.com
 
 #include "loopstack.hpp"
 #include <analyses/dirty.h>
+#include <fresh_symbol.h>
 #include <pointer-analysis/add_failed_symbols.h>
 
 static void get_l1_name(exprt &expr);
@@ -861,4 +862,79 @@ ssa_exprt goto_symex_statet::declare(ssa_exprt ssa, const namespacet &ns)
   record_events.pop();
 
   return ssa;
+}
+
+dstringt goto_symex_statet::resolve(namespacet &ns, dstringt var)
+{
+  auto argument = rename(ns.lookup(var).symbol_expr(), ns).get();
+  if(argument.id() != ID_symbol)
+  {
+    // we just assign it to a new variable
+    return assign_to_new_if_constant(
+      ns, argument, ns.get_symbol_table().begin()->second.mode);
+  }
+  else
+  {
+    return to_symbol_expr(argument).get_identifier();
+  }
+}
+
+void goto_symex_statet::assign_unknown(namespacet &ns, dstringt var)
+{
+  auto renamed = rename(ns.lookup(var).symbol_expr(), ns);
+  auto fresh = get_fresh_aux_symbol(
+    renamed.get().type(),
+    "oa_unknown",
+    var.c_str(),
+    source.pc->source_location,
+    ns.lookup(var).mode,
+    symbol_table);
+  auto rhs = fresh.symbol_expr();
+  exprt::operandst lhs_conditions;
+  ssa_exprt new_lhs =
+    rename_ssa<L1>(ssa_exprt{ns.lookup(var).symbol_expr()}, ns).get();
+  auto ret = assignment(new_lhs, rhs, ns, true, true);
+  ssa_exprt new_lhs2 = ret;
+  symex_target->assignment(
+    guard.as_expr(),
+    new_lhs2,
+    new_lhs2,
+    rhs,
+    rhs,
+    source,
+    symex_targett::assignment_typet::HIDDEN);
+}
+
+dstringt goto_symex_statet::assign_to_new_if_constant(
+  namespacet &ns,
+  exprt expr,
+  irep_idt mode)
+{
+  if(expr.is_constant())
+  {
+    auto renamed = rename(expr, ns);
+    auto fresh = get_fresh_aux_symbol(
+      renamed.get().type(),
+      "oa_constant",
+      "",
+      source.pc->source_location,
+      mode,
+      symbol_table);
+    auto fresh_symbol = fresh.symbol_expr();
+    exprt::operandst lhs_conditions;
+    auto lhs = rename_ssa<L1>(ssa_exprt{fresh_symbol}, ns).get();
+    auto ret = assignment(lhs, expr, ns, true, true);
+    const guardt guard(true_exprt(), guard_manager);
+    auto rhs_ssa = rename(expr, ns).get();
+    symex_target->assignment(
+      guard.as_expr(),
+      lhs,
+      lhs,
+      fresh_symbol,
+      rhs_ssa,
+      source,
+      symex_targett::assignment_typet::HIDDEN);
+    return lhs.get_identifier();
+  }
+  return to_symbol_expr(expr).get_identifier();
 }
