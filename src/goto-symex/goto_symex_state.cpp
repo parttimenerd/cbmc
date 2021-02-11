@@ -168,10 +168,10 @@ goto_symex_statet::rename_ssa<L1>(ssa_exprt ssa, const namespacet &ns);
 
 template <levelt level>
 renamedt<exprt, level>
-goto_symex_statet::rename(exprt expr, const namespacet &ns)
+goto_symex_statet::rename_untracked(exprt expr, const namespacet &ns)
 {
   // rename all the symbols with their last known value
-  //std::cout << "      rename " << expr.to_string2() << "\n";
+
   static_assert(
     level == L0 || level == L1 || level == L1_WITH_CONSTANT_PROPAGATION ||
       level == L2,
@@ -281,6 +281,19 @@ goto_symex_statet::rename(exprt expr, const namespacet &ns)
 
     return renamedt<exprt, level>{std::move(expr)};
   }
+}
+
+template <levelt level>
+renamedt<exprt, level>
+goto_symex_statet::rename(exprt expr, const namespacet &ns)
+{
+  auto ret = rename_untracked<level>(expr, ns);
+  if(ret.value().id() == ID_symbol && level == L2)
+  {
+    this->symex_target->get_loop_stack()->access(
+      to_symbol_expr(ret.value()).get_identifier());
+  }
+  return ret;
 }
 
 // Explicitly instantiate the one version of this function without an explicit

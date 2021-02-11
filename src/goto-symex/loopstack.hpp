@@ -50,7 +50,8 @@ public:
   {
   }
 
-  variablest(std::unordered_set<dstringt> vars)
+  template <typename Container>
+  variablest(const Container vars)
   {
     for(const auto &var : vars)
     {
@@ -138,7 +139,7 @@ struct scope
   optionalt<dstringt> guard;
   std::unordered_set<dstringt> assigned;
   variablest variables;
-  std::unordered_set<dstringt> read_variables;
+  std::unordered_set<dstringt> accessed_variables;
 
   explicit scope(size_t id) : id(id)
   {
@@ -146,7 +147,10 @@ struct scope
 
   void assign(dstringt id);
 
-  void read(dstringt id);
+  /// includes all accessed variables that are not assigned in this scope
+  std::unordered_set<dstringt> out_of_scope_read_variables() const;
+
+  void access(dstringt id);
 
   /// does assigning the passed variable lead to an inconsistent state
   /// and is it therefore necessary to create a new scope?
@@ -185,6 +189,9 @@ struct loop_iteration
 
   variablest assigned_variable_set() const;
 
+  /// variables read and not assigned in the same scope
+  variablest read_variable_set() const;
+
   bool contains_variables() const;
 
   optionalt<dstringt> guard() const;
@@ -210,6 +217,8 @@ struct loopt
 
   const size_t nr;
 
+  const optionalt<size_t> parent_loop_id;
+
   const loop_stackt *stack;
 
   const size_t depth;
@@ -234,10 +243,21 @@ struct loopt
     size_t id,
     const dstringt func_id,
     size_t nr,
+    optionalt<size_t> parent_loop_id,
     loop_stackt *stack,
     const size_t depth,
     guardt context_guard,
-    size_t before_end_scope);
+    size_t before_end_scope)
+    : id(id),
+      func_id(func_id),
+      nr(nr),
+      parent_loop_id(parent_loop_id),
+      stack(stack),
+      depth(depth),
+      context_guard(context_guard),
+      before_end_scope(before_end_scope)
+  {
+  }
 
   /// returns the end that omits the first loop iteration
   /// works if the guard is already set
@@ -298,6 +318,9 @@ struct loopt
   std::vector<std::string> last_iter_input() const;
 
   std::vector<std::string> last_iter_output() const;
+
+  /// all read out of scope variables
+  std::vector<std::string> last_iter_read() const;
 
   std::vector<std::string> result_variables() const;
 };
@@ -381,10 +404,13 @@ public:
     PRECONDITION(is_initialized);
     auto before_id = current_scope().id;
     push_back_scope();
+    auto parent = loop_stack.size() > 0 ? optionalt<size_t>(loop_stack.back())
+                                        : optionalt<size_t>();
     loops.emplace_back(
       loops.size(),
       func_id,
       loop_nr,
+      parent,
       this,
       loop_stack.size(),
       context_guard,
@@ -442,7 +468,13 @@ public:
 
   void assign(dstringt id);
 
-  std::vector<dstringt> variables(size_t start_scope, size_t end_scope) const;
+  void access(dstringt id);
+
+  std::vector<dstringt> variables(
+    size_t start_scope,
+    size_t end_scope,
+    std::function<std::unordered_set<dstringt>(const scope &)> accessor =
+      [](const scope &sc) { return sc.assigned; }) const;
 
   /// Set the guard of the last loop iteration that is currently on top
   /// if it does not yet have a loop iteration

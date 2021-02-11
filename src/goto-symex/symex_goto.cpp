@@ -321,17 +321,14 @@ void goto_symext::symex_goto(statet &state)
     }
 
     unwind++;
-    //std::cout << "unwind " << unwind << "\n";
-    if(should_stop_unwind(state.source, state.call_stack(), unwind))
-    {
-      //std::cout << " -- pop\n";
-      ls_stack.end_current_loop();
-    }
 
     if(should_stop_unwind(state.source, state.call_stack(), unwind))
     {
+      ls_stack.end_current_loop();
       // we break the loop
-      loop_bound_exceeded(state, new_guard);
+      //loop_bound_exceeded(state, new_guard);  // dtodo: is removing this line correct?
+      // rational for removing this line:
+      //   we don't really end the loop, it may still unroll further
 
       // next instruction
       symex_transition(state);
@@ -1064,7 +1061,7 @@ void goto_symext::loop_bound_exceeded(
     }
 
     // generate unwinding assumption, unless we permit partial loops
-    symex_assume_l2(state, negated_cond); // dtodo: mayby remove this line?
+    symex_assume_l2(state, negated_cond); // dtodo: maybe remove this line?
 
     if(symex_config.unwinding_assertions)
     {

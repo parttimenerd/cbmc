@@ -100,6 +100,10 @@ public:
   template <levelt level = L2>
   NODISCARD renamedt<exprt, level> rename(exprt expr, const namespacet &ns);
 
+  template <levelt level = L2>
+  NODISCARD renamedt<exprt, level>
+  rename_untracked(exprt expr, const namespacet &ns);
+
   /// Version of rename which is specialized for SSA exprt.
   /// Implementation only exists for level L0 and L1.
   template <levelt level>

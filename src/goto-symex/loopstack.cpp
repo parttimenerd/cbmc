@@ -65,6 +65,19 @@ void scope::assign(dstringt var)
   variables.insert(var);
 }
 
+std::unordered_set<dstringt> scope::out_of_scope_read_variables() const
+{
+  std::unordered_set<dstringt> ret;
+  for(const auto &var : accessed_variables)
+  {
+    if(assigned.find(var) == assigned.end())
+    {
+      ret.emplace(var);
+    }
+  }
+  return ret;
+}
+
 bool scope::split_before(dstringt var) const
 {
   return is_guard(var);
@@ -75,13 +88,13 @@ bool scope::matches_guard(dstringt guard_var) const
   return guard && guard.value() == guard_var;
 }
 
-void scope::read(dstringt var)
+void scope::access(dstringt var)
 {
-  if(getenv("LOG_READ"))
+  if(getenv("LOG_ACCESS"))
   {
-    std::cerr << "read " << var << "\n";
+    std::cerr << "access " << var << "\n";
   }
-  read_variables.emplace(var);
+  accessed_variables.emplace(var);
 }
 
 guard_variablest get_guard_variables(const guard_exprt &guard, size_t omit_last)
@@ -173,7 +186,16 @@ bool loop_iteration::contains_variables() const
 variablest loop_iteration::assigned_variable_set() const
 {
   auto vec = loop->get_stack()->variables(start_scope, end_scope);
-  return {{vec.begin(), vec.end()}};
+  return {vec};
+}
+
+variablest loop_iteration::read_variable_set() const
+{
+  auto vec =
+    loop->get_stack()->variables(start_scope, end_scope, [](const scope &sc) {
+      return sc.out_of_scope_read_variables();
+    });
+  return {vec};
 }
 
 optionalt<dstringt> loop_iteration::guard() const
@@ -235,7 +257,10 @@ std::ostream &operator<<(std::ostream &os, const loopt &loop)
     }
     os << "\n";
   }
-  os << "c loop " << loop.id << " " << loop.func_id << " " << loop.nr;
+  os << "c loop " << loop.id << " " << loop.func_id << " " << loop.nr << " "
+     << (loop.parent_loop_id.has_value()
+           ? std::to_string(loop.parent_loop_id.value())
+           : "-1");
   os << " | input";
   for(const auto &var : loop.outer_loop_variables())
   {
@@ -261,6 +286,11 @@ std::ostream &operator<<(std::ostream &os, const loopt &loop)
   {
     os << " " << var;
   }
+  os << " | lread";
+  for(const auto &var : loop.last_iter_read())
+  {
+    os << " " << var;
+  }
   os << " | output";
   // dtodo: output and loutput should be the same, but they aren't apparently…
   for(const auto &var : loop.result_variables())
@@ -268,24 +298,6 @@ std::ostream &operator<<(std::ostream &os, const loopt &loop)
     os << " " << var;
   }
   return os;
-}
-
-loopt::loopt(
-  size_t id,
-  const dstringt func_id,
-  size_t nr,
-  loop_stackt *stack,
-  const size_t depth,
-  guardt context_guard,
-  size_t before_end_scope)
-  : id(id),
-    func_id(func_id),
-    nr(nr),
-    stack(stack),
-    depth(depth),
-    context_guard(context_guard),
-    before_end_scope(before_end_scope)
-{
 }
 
 void loopt::push_iteration(
@@ -355,6 +367,14 @@ std::vector<std::string> loopt::last_iter_input() const
     .get_last();
 }
 
+std::vector<std::string> loopt::last_iter_read() const
+{
+  return iterations.at(iterations.size() - 2)
+    .read_variable_set()
+    .restrict_to(variablest(outer_loop_variables()))
+    .get_last();
+}
+
 std::vector<std::string> loopt::result_variables() const
 {
   return used_after_variables
@@ -362,14 +382,16 @@ std::vector<std::string> loopt::result_variables() const
     .get_first();
 }
 
-std::vector<dstringt>
-loop_stackt::variables(size_t start_scope, size_t end_scope) const
+std::vector<dstringt> loop_stackt::variables(
+  size_t start_scope,
+  size_t end_scope,
+  std::function<std::unordered_set<dstringt>(const scope &)> accessor) const
 {
   std::vector<dstringt> ret;
   for(size_t i = start_scope; i <= end_scope; i++)
   {
     auto sc = scopes.at(i);
-    for(auto var : sc.assigned)
+    for(auto var : accessor(sc))
     {
       ret.push_back(var);
     }
@@ -426,6 +448,13 @@ void loop_stackt::assign(dstringt id)
     push_back_scope();
   }
   current_scope().assign(id);
+}
+
+void loop_stackt::access(dstringt id)
+{
+  PRECONDITION(is_initialized);
+  PRECONDITION(!id.empty());
+  current_scope().access(id);
 }
 
 bool loop_stackt::should_discard_assignments_to(const dstringt &lhs)
