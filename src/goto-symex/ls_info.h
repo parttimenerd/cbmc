@@ -1,6 +1,10 @@
-//
-// Created by bechberger-local on 15.01.21.
-//
+/*******************************************************************\
+
+Module: Basic static analysis of methods
+
+Author: Johannes Bechberger, johannes.bechberger@kit.edu
+
+\*******************************************************************/
 
 /// Collected static information (prior to the symbolic execution) used by ls_stack for supporting
 /// aborted loops and recursions properly
@@ -40,13 +44,13 @@ public:
     dstringt_set callees,
     dstringt_set directly_assigned,
     dstringt_set directly_read,
-    const dstringt_set parameters,
+    dstringt_set parameters,
     optionalt<dstringt> return_var)
     : assigned_variables(directly_assigned),
       directly_assigned_variables(std::move(directly_assigned)),
       read_variables(directly_read),
       directly_read_variables(std::move(directly_read)),
-      parameters(parameters),
+      parameters(std::move(parameters)),
       return_var(std::move(return_var)),
       function_id(function_id),
       function(function),
@@ -94,8 +98,8 @@ class ls_infot
 {
   std::unordered_map<dstringt, ls_func_info> func_infos;
 
-  ls_infot(const std::unordered_map<dstringt, ls_func_info> func_infos)
-    : func_infos(func_infos)
+  explicit ls_infot(std::unordered_map<dstringt, ls_func_info> func_infos)
+    : func_infos(std::move(func_infos))
   {
   }
 

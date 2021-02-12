@@ -1,6 +1,10 @@
-/**
- * Corresponds with the recursion_graph module in dsharpy
- */
+/*******************************************************************\
+
+Module: Abstraction of aborted recursions, corresponds with the recursion_graph module in dsharpy
+
+Author: Johannes Bechberger, johannes.bechberger@kit.edu
+
+\*******************************************************************/
 
 #ifndef CBMC_LS_REC_GRAPH_H
 #define CBMC_LS_REC_GRAPH_H
@@ -15,11 +19,35 @@
 using name_mappingt = std::unordered_map<dstringt, dstringt>;
 using resolvet = std::function<dstringt(dstringt)>;
 using assign_unknownt = std::function<void(dstringt)>;
-using set_guardt = std::function<void(guardt)>;
 
+bool is_guard(dstringt var);
+
+/// should a loop be marked to be fully approximated (without counting the real variability of the inputs)?
+/// helpful for loops that are known to be unimportant
+bool should_fully_over_approximate(dstringt function_id);
+
+template <typename Container>
 name_mappingt create_mapping(
-  const std::unordered_set<dstringt> &variables,
-  const resolvet &resolve);
+  const Container &variables,
+  const std::function<dstringt(dstringt)> &resolve,
+  bool skip_guards = false)
+{
+  name_mappingt ret;
+  for(auto var : variables)
+  {
+    if(skip_guards && is_guard(var))
+    {
+      continue;
+    }
+    ret.emplace(var, resolve(var));
+  }
+  return ret;
+}
+
+dstringt basename(const dstringt &name);
+dstringt l0_name(const dstringt &name);
+
+std::tuple<dstringt, size_t> split_var(const dstringt &name);
 
 std::vector<dstringt> get_base_names(const name_mappingt &mapping);
 
@@ -49,7 +77,7 @@ protected:
     : info(info),
       func_name(info.function_id),
       input(std::move(input)),
-      output(output)
+      output(std::move(output))
   {
   }
 };
@@ -83,7 +111,7 @@ public:
   static ls_recursion_childt create(
     size_t id,
     const ls_func_info &info,
-    const guardt guard,
+    const guardt &guard,
     const resolvet &resolve,
     const assign_unknownt &assign_unknown);
 };
@@ -166,7 +194,7 @@ public:
   }
 
   void create_rec_child(
-    requested_functiont func,
+    const requested_functiont &func,
     const guardt &guard,
     const resolvet &resolve,
     const assign_unknownt &assign_unknown)
@@ -197,8 +225,8 @@ public:
   /// setup the current frame before calling it
   /// it sets all needed variables, runs the passed method and records the values of variables
   void process_requested(
-    requested_functiont func,
-    std::function<void()> state_processor,
+    const requested_functiont &func,
+    const std::function<void()> &state_processor,
     const resolvet &resolve,
     const assign_unknownt &assign_unknown);
 

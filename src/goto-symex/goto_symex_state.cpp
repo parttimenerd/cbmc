@@ -472,7 +472,6 @@ bool goto_symex_statet::l2_thread_read_encoding(
     ssa_exprt ssa_l2 = assignment(std::move(ssa_l1), tmp, ns, true, true).get();
     record_events.pop();
 
-    //std::cout << "here is also a phi " << ssa_l2.to_string2() << "\n";
     symex_target->assignment(
       guard_as_expr,
       ssa_l2,
@@ -482,7 +481,6 @@ bool goto_symex_statet::l2_thread_read_encoding(
       source,
       symex_targett::assignment_typet::PHI);
 
-    // dtodo: remove assignment here?
     INVARIANT(!check_renaming(ssa_l2), "expr should be renamed to L2");
     expr = std::move(ssa_l2);
 
@@ -883,7 +881,7 @@ dstringt goto_symex_statet::resolve(namespacet &ns, dstringt var)
   if(argument.id() != ID_symbol)
   {
     // we just assign it to a new variable
-    return assign_to_new_if_constant(
+    return assign_to_new_if_non_symbol(
       ns, argument, ns.get_symbol_table().begin()->second.mode);
   }
   else
@@ -906,8 +904,7 @@ void goto_symex_statet::assign_unknown(namespacet &ns, dstringt var)
   exprt::operandst lhs_conditions;
   ssa_exprt new_lhs =
     rename_ssa<L1>(ssa_exprt{ns.lookup(var).symbol_expr()}, ns).get();
-  auto ret = assignment(new_lhs, rhs, ns, true, true);
-  ssa_exprt new_lhs2 = ret;
+  ssa_exprt new_lhs2 = assignment(new_lhs, rhs, ns, true, true);
   symex_target->assignment(
     guard.as_expr(),
     new_lhs2,
@@ -918,12 +915,12 @@ void goto_symex_statet::assign_unknown(namespacet &ns, dstringt var)
     symex_targett::assignment_typet::HIDDEN);
 }
 
-dstringt goto_symex_statet::assign_to_new_if_constant(
+dstringt goto_symex_statet::assign_to_new_if_non_symbol(
   namespacet &ns,
   exprt expr,
   irep_idt mode)
 {
-  if(expr.is_constant())
+  if(expr.id() != ID_symbol)
   {
     auto renamed = rename(expr, ns);
     auto fresh = get_fresh_aux_symbol(

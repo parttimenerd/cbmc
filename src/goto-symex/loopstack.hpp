@@ -2,7 +2,7 @@
 
 Module: Stack of variables accessed and altered in loops
 
-Author: Johannes Bechberger, johannes@bechberger.me
+Author: Johannes Bechberger, johannes.bechberger@kit.edu
 
 \*******************************************************************/
 
@@ -24,34 +24,14 @@ Author: Johannes Bechberger, johannes@bechberger.me
 #include <utility>
 #include <vector>
 
-template <typename baset>
-class indirection
-{
-  std::vector<baset> &base;
-  size_t index;
-
-public:
-  indirection(std::vector<baset> &base, size_t index) : base(base), index(index)
-  {
-  }
-
-  baset &operator*()
-  {
-    return base.at(index);
-  }
-};
-
 class variablest
 {
-  std::unordered_map<std::string, std::set<size_t>> vars;
+  std::unordered_map<dstringt, std::set<size_t>> var_map;
+  std::unordered_set<dstringt> variables;
 
 public:
-  variablest()
-  {
-  }
-
   template <typename Container>
-  variablest(const Container vars)
+  explicit variablest(Container vars)
   {
     for(const auto &var : vars)
     {
@@ -59,72 +39,20 @@ public:
     }
   }
 
-  void insert(dstringt var)
+  void insert(dstringt var);
+
+  bool contains(const dstringt &var) const
   {
-    insert(std::string(var.c_str()));
+    return var_map.find(var) != var_map.end() ||
+           variables.find(var) != variables.end();
   }
 
-  std::tuple<std::string, size_t> split(const std::string &name) const
-  {
-    auto middle = name.find("#");
-    std::istringstream iss(name.substr(middle + 1));
-    size_t num;
-    iss >> num;
-    return {name.substr(0, middle), num};
-  }
+  std::unordered_map<dstringt, size_t> get_first() const;
 
-  void insert(const std::string &var)
-  {
-    auto split_res = split(var);
-    vars[std::get<0>(split_res)].insert(std::get<1>(split_res));
-  }
+  std::vector<dstringt>
+  get_var_bases_not_in(const std::unordered_map<dstringt, size_t> &&vars) const;
 
-  bool contains(const std::string &var)
-  {
-    auto split_res = split(var);
-    return vars[std::get<0>(split_res)].find(std::get<1>(split_res)) !=
-           vars[std::get<0>(split_res)].end();
-  }
-
-  bool contains_guard() const
-  {
-    auto it = vars.find("goto_symex::\\guard");
-    return it != vars.end() && !it->second.empty();
-  }
-
-  std::vector<std::string> get_first() const
-  {
-    std::vector<std::string> ret;
-    for(const auto &item : vars)
-    {
-      if(!item.second.empty())
-      {
-        ret.push_back(item.first + "#" + std::to_string(*item.second.begin()));
-      }
-    }
-    return ret;
-  }
-
-  std::vector<std::string> get_last() const
-  {
-    std::vector<std::string> ret;
-    for(const auto &item : vars)
-    {
-      if(!item.second.empty())
-      {
-        ret.push_back(item.first + "#" + std::to_string(*item.second.rbegin()));
-      }
-    }
-    return ret;
-  }
-
-  /**
-   * Create a new variable set that contains only the variables that the other variable set contains,
-   * albeit with different numbers
-   */
-  variablest restrict_to(const variablest &other) const;
-
-  optionalt<std::string> get_last_guard() const;
+  std::vector<dstringt> get_var_bases() const;
 
   friend std::ostream &
   operator<<(std::ostream &os, const variablest &variablest);
@@ -132,23 +60,32 @@ public:
 
 class symex_target_equationt;
 
-struct scope
+class scopet
 {
-  size_t id;
+public:
+  const size_t id;
+
+private:
   /// is part of the assigned variables
   optionalt<dstringt> guard;
   std::unordered_set<dstringt> assigned;
-  variablest variables;
-  std::unordered_set<dstringt> accessed_variables;
+  std::unordered_set<dstringt> accessed;
 
-  explicit scope(size_t id) : id(id)
+public:
+  explicit scopet(size_t id) : id(id)
   {
   }
 
   void assign(dstringt id);
 
-  /// includes all accessed variables that are not assigned in this scope
-  std::unordered_set<dstringt> out_of_scope_read_variables() const;
+  const std::unordered_set<dstringt> &get_assigned() const
+  {
+    return assigned;
+  }
+  const std::unordered_set<dstringt> &get_accessed() const
+  {
+    return accessed;
+  }
 
   void access(dstringt id);
 
@@ -159,42 +96,166 @@ struct scope
   bool matches_guard(dstringt guard_var) const;
 };
 
+template <typename T>
+std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec)
+{
+  bool first = true;
+  os << "[";
+  for(const auto &item : vec)
+  {
+    if(first)
+    {
+      os << item;
+      first = false;
+    }
+    else
+    {
+      os << ", " << item;
+    }
+  }
+  return os << "]";
+}
+
+class loop_iter_variablest
+{
+  variablest accessed;
+  variablest written;
+  /// a version of this variable is accessed but not written in this iteration
+  std::vector<dstringt> read_bases;
+
+public:
+  loop_iter_variablest(const variablest &accessed, const variablest &written)
+    : accessed(accessed),
+      written(written),
+      read_bases(accessed.get_var_bases_not_in(written.get_first()))
+  {
+  }
+
+  const variablest &get_accessed() const
+  {
+    return accessed;
+  }
+
+  const variablest &get_written() const
+  {
+    return written;
+  }
+
+  friend std::ostream &
+  operator<<(std::ostream &os, const loop_iter_variablest &loop_iter_variables)
+  {
+    return os << "LIV{accessed=" << loop_iter_variables.accessed
+              << " written=" << loop_iter_variables.written << "}";
+  }
+};
+
 struct loopt;
 
 /// last loop iteration
-struct loop_iteration
+class loop_iteration
 {
+public:
   const size_t id;
 
-  loopt *loop;
+  const loopt *loop;
 
   const size_t start_scope;
 
+private:
   size_t end_scope;
 
-  const bool is_second_to_last_iteration;
+  mutable optionalt<loop_iter_variablest> variables; // used for caching
 
-  /// is this the last iteration of the unrolled loop?
-  const bool is_last_iteration;
+  optionalt<dstringt> guard;
 
-  loop_iteration(
-    size_t id,
-    loopt *loop,
-    size_t start_scope,
-    size_t end_scope,
-    const bool is_second_to_last_iteration,
-    const bool is_last_iteration);
-
-  std::vector<dstringt> assigned_variables() const;
-
-  variablest assigned_variable_set() const;
-
-  /// variables read and not assigned in the same scope
-  variablest read_variable_set() const;
+public:
+  loop_iteration(size_t id, loopt *loop, size_t start_scope, size_t end_scope);
 
   bool contains_variables() const;
 
-  optionalt<dstringt> guard() const;
+  /// a version of this variable is accessed but not written in this iteration
+  const loop_iter_variablest &get_variables() const;
+
+  size_t get_end_scope() const
+  {
+    return end_scope;
+  }
+
+  void set_end_scope(size_t end_scope_)
+  {
+    variables = {};
+    this->end_scope = end_scope_;
+  }
+
+  const optionalt<dstringt> &get_guard() const
+  {
+    return guard;
+  }
+
+  void set_guard(optionalt<dstringt> guard)
+  {
+    this->guard = std::move(guard);
+  }
+};
+
+/// the last loop iteration
+class last_loop_itert
+{
+  loop_iteration *iteration;
+
+  optionalt<dstringt> guard;
+  /// input at the beginning of the last iteration
+  name_mappingt input;
+  /// assigned unknowns for all input variables
+  name_mappingt inner_input;
+  name_mappingt misc_input;
+  name_mappingt inner_output;
+  name_mappingt output;
+
+public:
+  last_loop_itert(
+    loop_iteration *iteration,
+    name_mappingt input,
+    name_mappingt inner_input,
+    name_mappingt misc_input)
+    : iteration(iteration),
+      input(std::move(input)),
+      inner_input(std::move(inner_input)),
+      misc_input(std::move(misc_input))
+  {
+  }
+
+  void set_guard(optionalt<dstringt> guard)
+  {
+    this->guard = std::move(guard);
+  }
+
+  void set_output(name_mappingt inner_output, name_mappingt output)
+  {
+    this->inner_output = std::move(inner_output);
+    this->output = std::move(output);
+  }
+
+  const name_mappingt &get_input() const
+  {
+    return input;
+  }
+  const name_mappingt &get_misc_input() const
+  {
+    return misc_input;
+  }
+  const name_mappingt &get_inner_input() const
+  {
+    return inner_input;
+  }
+  const name_mappingt &get_inner_output() const
+  {
+    return inner_output;
+  }
+  const name_mappingt &get_output() const
+  {
+    return output;
+  }
 };
 
 class loop_stackt;
@@ -225,20 +286,25 @@ struct loopt
   /// guard in the context (remove later all guards that are part of the guards variable)
   const guardt context_guard;
 
+  const bool should_fully_over_approximate;
+
+private:
   /// omits the very first iteration
   std::vector<loop_iteration> iterations;
 
   std::vector<guard_exprt> guards;
 
+public:
   const size_t before_end_scope;
 
-  std::vector<std::vector<dstringt>> relations;
-
+private:
   /// variables assigned via phis after the whole unrolled loop
   /// that have versions inside the loop and are not constant
   std::unordered_set<dstringt> used_after;
-  variablest used_after_variables;
 
+  optionalt<last_loop_itert> last_loop_iter;
+
+public:
   loopt(
     size_t id,
     const dstringt func_id,
@@ -247,14 +313,16 @@ struct loopt
     loop_stackt *stack,
     const size_t depth,
     guardt context_guard,
-    size_t before_end_scope)
+    size_t before_end_scope,
+    bool should_fully_over_approximate)
     : id(id),
       func_id(func_id),
       nr(nr),
-      parent_loop_id(parent_loop_id),
+      parent_loop_id(std::move(parent_loop_id)),
       stack(stack),
       depth(depth),
       context_guard(context_guard),
+      should_fully_over_approximate(should_fully_over_approximate),
       before_end_scope(before_end_scope)
   {
   }
@@ -273,7 +341,7 @@ struct loopt
     return iterations.back();
   }
 
-  const scope &get_scope(size_t scope_id) const;
+  const scopet &get_scope(size_t scope_id) const;
 
   const loop_stackt *get_stack() const;
 
@@ -284,50 +352,58 @@ struct loopt
     return !guards.empty();
   }
 
-  optionalt<dstringt> first_guard() const
-  {
-    if(has_guards())
-    {
-      return {to_symbol_expr(guards.front().last_guard()).get_identifier()};
-    }
-    return {};
-  }
-  void push_iteration(
-    size_t end_scope_of_last,
-    size_t end_scope,
-    bool is_second_to_last_iteration,
-    bool is_last_iteration);
+  optionalt<dstringt> first_guard() const;
+
+  void push_iteration(size_t end_scope_of_last, size_t end_scope);
   void end_loop(size_t end_scope);
   void add_guard(guard_exprt &iter_guard);
 
-  /// Relate the symbol to all symbols that are part of the passed expression
-  void relate(std::vector<dstringt> symbols, exprt expr);
-  std::vector<dstringt> outer_loop_variables() const;
-
-  bool in_second_to_last_iteration()
-  {
-    return !iterations.empty() && back().is_second_to_last_iteration;
-  }
   bool in_last_iteration()
   {
-    return !iterations.empty() && back().is_last_iteration;
+    return last_loop_iter.has_value();
   }
 
   void add_used_after(dstringt var);
 
-  std::vector<std::string> last_iter_input() const;
+  void process_assigned_guard_var(dstringt var);
 
-  std::vector<std::string> last_iter_output() const;
+  const loop_iteration &first_iteration() const
+  {
+    PRECONDITION(!iterations.empty());
+    return iterations.front();
+  }
 
-  /// all read out of scope variables
-  std::vector<std::string> last_iter_read() const;
+  /// get the base names of input
+  /// a loop input is a variable that
+  ///   - is read in the first loop iteration
+  ///       - a version of this variable is accessed but not written in this iteration
+  ///   - and written in the same iteration
+  ///   - to be safe: also variables that are only written are included for now   // dtodo: fix later
+  /// a misc input is an input for which the last condition does not hold
+  /// \return (input bases, misc input bases)
+  std::tuple<std::vector<dstringt>, std::vector<dstringt>>
+  get_loop_iter_input() const;
 
-  std::vector<std::string> result_variables() const;
+  std::vector<dstringt> get_loop_iter_output() const
+  {
+    return first_iteration().get_variables().get_written().get_var_bases();
+  }
+
+  /// push loop iteration before
+  /// assumes that at least one other loop iteration has been pushed before
+  ///
+  /// creates a last_loop_itert and assigns unknown values to all loop iter input variables (that are written in
+  /// a loop iteration)
+  void begin_last_loop_iteration(
+    const resolvet &resolve,
+    const assign_unknownt &assign_unknown);
+
+  void end_loop(const resolvet &resolve, const assign_unknownt &assign_unknown);
 };
 
 class loop_stackt
 {
-  std::vector<scope> scopes;
+  std::vector<scopet> scopes;
 
   std::vector<loopt> loops;
 
@@ -352,7 +428,7 @@ public:
     }
   }
 
-  const ls_infot get_info() const
+  const ls_infot &get_info() const
   {
     PRECONDITION(is_initialized);
     return info.value();
@@ -363,12 +439,7 @@ public:
     return *rec_nodes;
   }
 
-  bool make_second_to_last_iteration_abstract() const
-  {
-    return true;
-  }
-
-  const std::vector<scope> &get_scopes()
+  const std::vector<scopet> &get_scopes()
   {
     return scopes;
   }
@@ -378,7 +449,7 @@ public:
     return loops;
   }
 
-  const scope &get_scope(size_t id) const
+  const scopet &get_scope(size_t id) const
   {
     return scopes.at(id);
   }
@@ -388,7 +459,7 @@ public:
     push_back_scope();
   }
 
-  scope &current_scope()
+  scopet &current_scope()
   {
     return scopes.back();
   }
@@ -398,29 +469,11 @@ public:
     scopes.emplace_back(scopes.size());
   }
 
-  void
-  push_back_loop(dstringt func_id, size_t loop_nr, guard_exprt context_guard)
-  {
-    PRECONDITION(is_initialized);
-    auto before_id = current_scope().id;
-    push_back_scope();
-    auto parent = loop_stack.size() > 0 ? optionalt<size_t>(loop_stack.back())
-                                        : optionalt<size_t>();
-    loops.emplace_back(
-      loops.size(),
-      func_id,
-      loop_nr,
-      parent,
-      this,
-      loop_stack.size(),
-      context_guard,
-      before_id);
-    loop_stack.push_back(loops.back().id);
-    if(getenv("LOG_LOOP") != nullptr)
-    {
-      std::cerr << "start loop " << current_loop().id << "\n";
-    }
-  }
+  void push_back_loop(
+    dstringt func_id,
+    dstringt calling_location,
+    size_t loop_nr,
+    const guard_exprt &context_guard);
 
   loopt &current_loop()
   {
@@ -432,39 +485,11 @@ public:
     return !loop_stack.empty();
   }
 
-  void
-  push_loop_iteration(bool is_second_to_last_iteration, bool is_last_iteration)
-  {
-    PRECONDITION(is_initialized);
-    if(getenv("LOG_LOOP") != nullptr)
-    {
-      std::cerr << "push iteration " << (current_loop().iterations.size() + 1)
-                << " of loop " << current_loop().id;
-      if(is_last_iteration)
-      {
-        std::cerr << " last iteration";
-      }
-      std::cerr << "\n";
-    }
-    push_back_scope();
-    current_loop().push_iteration(
-      current_scope().id - 1,
-      current_scope().id,
-      is_second_to_last_iteration,
-      is_last_iteration);
-  }
+  loopt &push_loop_iteration();
 
-  void end_current_loop()
-  {
-    auto &last = current_loop();
-    last.end_loop(current_scope().id);
-    if(getenv("LOG_LOOP") != nullptr)
-    {
-      std::cerr << "end loop " << current_loop().id << "\n";
-    }
-    loop_stack.pop_back();
-    push_back_scope();
-  }
+  void end_current_loop(
+    const resolvet &resolve,
+    const assign_unknownt &assign_unknown);
 
   void assign(dstringt id);
 
@@ -473,8 +498,8 @@ public:
   std::vector<dstringt> variables(
     size_t start_scope,
     size_t end_scope,
-    std::function<std::unordered_set<dstringt>(const scope &)> accessor =
-      [](const scope &sc) { return sc.assigned; }) const;
+    const std::function<std::unordered_set<dstringt>(const scopet &)>
+      &accessor = [](const scopet &sc) { return sc.get_assigned(); }) const;
 
   /// Set the guard of the last loop iteration that is currently on top
   /// if it does not yet have a loop iteration
@@ -493,12 +518,6 @@ public:
   {
     emit(std::cout);
   }
-
-  /// Should an assignment to the past variable lead to a self assignment.
-  ///
-  /// An assignment should be removed if it is related to the second
-  // to a last iteration (and its configured to use this iteration as an abstract one)
-  bool should_discard_assignments_to(const dstringt &lhs);
 };
 
 #endif //CBMC_LOOPSTACK_HPP

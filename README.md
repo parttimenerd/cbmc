@@ -13,6 +13,8 @@ This CBMC is modified to capture information needed for over-approximating loops
 The emitted DIMACS output on stdout should be converted into DSharpies file format via
 its convert tool.
 
+Important: The last unwinding of a loop is used for the abstract iteration
+
 Debugging output
 ----------------
 

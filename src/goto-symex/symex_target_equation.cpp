@@ -19,7 +19,6 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <solvers/decision_procedure.h>
 #include <solvers/hardness_collector.h>
 
-#include "loopstack.hpp"
 #include "ssa_step.h"
 
 static hardness_collectort::handlert
@@ -123,16 +122,13 @@ void symex_target_equationt::assignment(
 {
   PRECONDITION(ssa_lhs.is_not_nil());
   assert(stack);
-  auto discard = stack->should_discard_assignments_to(ssa_lhs.get_identifier());
-  auto in_sli =
-    stack->is_in_loop() && stack->current_loop().in_second_to_last_iteration();
   SSA_steps.emplace_back(SSA_assignment_stept{
     source,
     guard,
     ssa_lhs,
     ssa_full_lhs,
     original_full_lhs,
-    discard ? ssa_lhs : ssa_rhs,
+    ssa_rhs,
     assignment_type});
   if(getenv("LOG_ASSIGN"))
   {
@@ -142,17 +138,9 @@ void symex_target_equationt::assignment(
     {
       std::cerr << " constant";
     }
-    if(discard)
-    {
-      std::cerr << " discard";
-    }
-    if(in_sli)
-    {
-      std::cerr << " sli";
-    }
     std::cerr << "\n";
   }
-  if(!ssa_rhs.is_constant() || in_sli)
+  //if (!ssa_rhs.is_constant())
   {
     stack->assign(ssa_lhs.get_identifier());
   }

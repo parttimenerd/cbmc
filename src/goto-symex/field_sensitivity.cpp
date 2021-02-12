@@ -284,13 +284,6 @@ void field_sensitivityt::field_assignments_rec(
       ssa_rhs,
       state.source,
       symex_targett::assignment_typet::STATE);
-    if(
-      target.get_loop_stack() != nullptr &&
-      target.get_loop_stack()->should_discard_assignments_to(
-        ssa_lhs.get_identifier()))
-    {
-      state.propagation.erase_if_exists(ssa_lhs.get_identifier());
-    }
   }
   else if(lhs.type().id() == ID_struct || lhs.type().id() == ID_struct_tag)
   {

@@ -1,23 +1,7 @@
-//
-// Created by bechberger-local on 26.01.21.
-//
-
 #include "ls_rec_graph.h"
 
 #include "loopstack.hpp"
 #include <utility>
-
-name_mappingt create_mapping(
-  const std::unordered_set<dstringt> &variables,
-  const std::function<dstringt(dstringt)> &resolve)
-{
-  name_mappingt ret;
-  for(auto var : variables)
-  {
-    ret.emplace(var, resolve(var));
-  }
-  return ret;
-}
 
 std::ostream &operator<<(std::ostream &os, const name_mappingt &mapping)
 {
@@ -38,7 +22,7 @@ std::ostream &operator<<(std::ostream &os, const ls_recursion_childt &child)
 ls_recursion_childt ls_recursion_childt::create(
   size_t id,
   const ls_func_info &info,
-  const guardt guard,
+  const guardt &guard,
   const resolvet &resolve,
   const assign_unknownt &assign_unknown)
 {
@@ -71,8 +55,8 @@ std::ostream &operator<<(std::ostream &os, const ls_recursion_node_dbt &dbt)
 }
 
 void ls_recursion_node_dbt::process_requested(
-  requested_functiont func,
-  std::function<void()> state_processor,
+  const requested_functiont &func,
+  const std::function<void()> &state_processor,
   const resolvet &resolve,
   const assign_unknownt &assign_unknown)
 {
@@ -105,7 +89,7 @@ unsigned int recursion_graph_inlining()
   char *opt = getenv("REC_GRAPH_INLINING");
   if(opt && strlen(opt) > 0)
   {
-    return std::stoi(opt);
+    return std::stoul(opt);
   }
   return 0;
 }
@@ -115,4 +99,38 @@ std::string to_string(const name_mappingt &mapping)
   std::stringstream ss;
   ss << mapping;
   return ss.str();
+}
+
+dstringt basename(const dstringt &name)
+{
+  std::string name_str{name.c_str()};
+  auto middle = name_str.find('#');
+  return name_str.substr(0, middle);
+}
+
+dstringt l0_name(const dstringt &name)
+{
+  std::string name_str{name.c_str()};
+  auto middle = name_str.find('!');
+  return name_str.substr(0, middle);
+}
+
+std::tuple<dstringt, size_t> split_var(const dstringt &name)
+{
+  std::string name_str{name.c_str()};
+  auto middle = name_str.find('#');
+  std::istringstream iss(name_str.substr(middle + 1));
+  size_t num;
+  iss >> num;
+  return {name_str.substr(0, middle), num};
+}
+
+bool is_guard(dstringt var)
+{
+  return strstr(var.c_str(), "::\\guard") != nullptr;
+}
+
+bool should_fully_over_approximate(dstringt function_id)
+{
+  return strstr(function_id.c_str(), "__CPROVER__start") != nullptr;
 }

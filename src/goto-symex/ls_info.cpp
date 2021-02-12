@@ -1,12 +1,7 @@
-//
-// Created by bechberger-local on 15.01.21.
-//
-
 #include "ls_info.h"
+#include <cstring>
 #include <goto-programs/abstract_goto_model.h>
 #include <queue>
-#include <stdio.h>
-#include <string.h>
 
 std::ostream &operator<<(std::ostream &os, const ls_func_info &info)
 {
@@ -131,11 +126,11 @@ class const_expr_func_visitort : public const_expr_visitort
   const std::function<void(const exprt &)> func;
 
 public:
-  const_expr_func_visitort(std::function<void(const exprt &)> func)
+  explicit const_expr_func_visitort(std::function<void(const exprt &)> func)
     : func(std::move(func))
   {
   }
-  void operator()(const exprt &expr)
+  void operator()(const exprt &expr) override
   {
     func(expr);
   }

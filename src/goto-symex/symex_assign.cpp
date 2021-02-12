@@ -18,6 +18,7 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <util/range.h>
 
 #include "symex_config.h"
+#include <util/format_expr.h>
 
 // We can either use with_exprt or update_exprt when building expressions that
 // modify components of an array or a struct. Set USE_UPDATE to use
@@ -210,14 +211,6 @@ void symex_assignt::assign_non_struct_symbol(
 
   const ssa_exprt &l1_lhs = assignment.lhs;
 
-  if(
-    target.get_loop_stack() != nullptr &&
-    target.get_loop_stack()->should_discard_assignments_to(
-      l2_lhs.get_identifier()))
-  {
-    //std::cerr << "# ignored " << state.propagation.find(l1_lhs.get_identifier()).value().get().to_string2() << "\n";
-    state.propagation.erase_if_exists(l1_lhs.get_identifier());
-  }
   if(state.field_sensitivity.is_divisible(l1_lhs))
   {
     // Split composite symbol lhs into its components

@@ -285,6 +285,7 @@ void goto_symext::symex_goto(statet &state)
     {
       ls_stack.push_back_loop(
         state.call_stack().top().function_identifier,
+        state.call_stack().top().calling_location.function_id,
         instruction.loop_number,
         state.guard);
     }
@@ -292,11 +293,22 @@ void goto_symext::symex_goto(statet &state)
     bool in_last_loop_iteration =
       should_stop_unwind(state.source, state.call_stack(), unwind + 2) &&
       !should_stop_unwind(state.source, state.call_stack(), unwind + 1);
-    bool in_second_to_last_loop_iteration =
-      !in_last_loop_iteration &&
-      should_stop_unwind(state.source, state.call_stack(), unwind + 3);
-    ls_stack.push_loop_iteration(
-      in_second_to_last_loop_iteration, in_last_loop_iteration);
+    loopt &loop = ls_stack.push_loop_iteration();
+
+    if(in_last_loop_iteration)
+    {
+      // we're now in the last loop iteration
+      // but before the guard is evaluated
+      loop.begin_last_loop_iteration(
+        [&](dstringt var) { return state.resolve(ns, var); },
+        [&](dstringt var) { state.assign_unknown(ns, var); });
+      // what we want to do here is the following:
+      //   - gather all variables written in the previous iteration
+      //   - record their value
+      //   - set all to unknown
+      //   - record all accessed values (minus written are the out of loops)
+      //   - set guard
+    }
 
     // is it label: goto label; or while(cond); - popular in SV-COMP
     if(
@@ -324,7 +336,11 @@ void goto_symext::symex_goto(statet &state)
 
     if(should_stop_unwind(state.source, state.call_stack(), unwind))
     {
-      ls_stack.end_current_loop();
+      // insert a rec child  "loop id" | input [written in prev loop and accessed] | output [written in loop]
+      // a phi[current guard] is written after (!)
+      ls_stack.end_current_loop(
+        [&](dstringt var) { return state.resolve(ns, var); },
+        [&](dstringt var) { state.assign_unknown(ns, var); });
       // we break the loop
       //loop_bound_exceeded(state, new_guard);  // dtodo: is removing this line correct?
       // rational for removing this line:
@@ -914,42 +930,7 @@ static void merge_names(
                       << "for " << new_lhs.to_string2() << " = "
                       << rhs.to_string2() << "\n";
           }
-          auto new_var =
-            get_fresh_aux_symbol( // dtodo: use this for loop invariant idea?
-              rhs.type(),
-              "oa_unknown",
-              new_lhs.to_string2(),
-              new_lhs.source_location(),
-              symbol.mode,
-              ns,
-              symbol_table);
           loop->add_used_after(new_lhs.get_identifier());
-          //loop->relate({new_lhs.get_identifier(), new_var.name}, if_expr);
-          // a = phi(guard,c,d) → a = new_var
-          //std::cerr << "#~#" << __LINE__ << " " << new_lhs.to_string2() << "\n";
-          target.assignment(
-            true_exprt(),
-            new_lhs,
-            new_lhs,
-            new_lhs.get_original_expr(),
-            new_var.symbol_expr(),
-            dest_state.source,
-            symex_targett::assignment_typet::PHI);
-          return;
-        }
-        else if(do_log_loop_merges)
-        {
-          std::cerr << " ~> cannot find loop or loop does not match, possible "
-                       "loops with their guards are \n";
-          for(const auto &loop : ls_stack.get_loops())
-          {
-            std::cerr << "    loop " << loop.id;
-            for(const auto &guard : loop.guards)
-            {
-              std::cerr << " " << guard.as_expr().to_string2();
-            }
-            std::cerr << "\n";
-          }
         }
       }
     }
