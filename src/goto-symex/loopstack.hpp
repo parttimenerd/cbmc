@@ -152,7 +152,7 @@ public:
 struct loopt;
 
 /// last loop iteration
-class loop_iteration
+class loop_iterationt
 {
 public:
   const size_t id;
@@ -169,7 +169,7 @@ private:
   optionalt<dstringt> guard;
 
 public:
-  loop_iteration(size_t id, loopt *loop, size_t start_scope, size_t end_scope);
+  loop_iterationt(size_t id, loopt *loop, size_t start_scope, size_t end_scope);
 
   bool contains_variables() const;
 
@@ -201,7 +201,7 @@ public:
 /// the last loop iteration
 class last_loop_itert
 {
-  loop_iteration *iteration;
+  loop_iterationt *iteration;
 
   optionalt<dstringt> guard;
   /// input at the beginning of the last iteration
@@ -214,7 +214,7 @@ class last_loop_itert
 
 public:
   last_loop_itert(
-    loop_iteration *iteration,
+    loop_iterationt *iteration,
     name_mappingt input,
     name_mappingt inner_input,
     name_mappingt misc_input)
@@ -290,7 +290,7 @@ struct loopt
 
 private:
   /// omits the very first iteration
-  std::vector<loop_iteration> iterations;
+  std::vector<std::unique_ptr<loop_iterationt>> iterations;
 
   std::vector<guard_exprt> guards;
 
@@ -298,10 +298,6 @@ public:
   const size_t before_end_scope;
 
 private:
-  /// variables assigned via phis after the whole unrolled loop
-  /// that have versions inside the loop and are not constant
-  std::unordered_set<dstringt> used_after;
-
   optionalt<last_loop_itert> last_loop_iter;
 
 public:
@@ -331,14 +327,14 @@ public:
   /// works if the guard is already set
   size_t adjusted_end_scope() const;
 
-  loop_iteration &back()
+  loop_iterationt &back()
   {
-    return iterations.back();
+    return *iterations.back();
   }
 
-  const loop_iteration &back() const
+  const loop_iterationt &back() const
   {
-    return iterations.back();
+    return *iterations.back();
   }
 
   const scopet &get_scope(size_t scope_id) const;
@@ -363,14 +359,12 @@ public:
     return last_loop_iter.has_value();
   }
 
-  void add_used_after(dstringt var);
-
   void process_assigned_guard_var(dstringt var);
 
-  const loop_iteration &first_iteration() const
+  const loop_iterationt &first_iteration() const
   {
     PRECONDITION(!iterations.empty());
-    return iterations.front();
+    return *iterations.front();
   }
 
   /// get the base names of input
@@ -405,11 +399,9 @@ class loop_stackt
 {
   std::vector<scopet> scopes;
 
-  std::vector<loopt> loops;
+  std::vector<std::unique_ptr<loopt>> loops;
 
   std::vector<size_t> loop_stack;
-
-  std::map<symbol_exprt, size_t> guard_symbol_to_loop{};
 
   optionalt<ls_infot> info;
   std::unique_ptr<ls_recursion_node_dbt> rec_nodes;
@@ -444,7 +436,7 @@ public:
     return scopes;
   }
 
-  const std::vector<loopt> &get_loops()
+  const std::vector<std::unique_ptr<loopt>> &get_loops()
   {
     return loops;
   }
@@ -477,7 +469,7 @@ public:
 
   loopt &current_loop()
   {
-    return loops.at(loop_stack.back());
+    return *loops.at(loop_stack.back());
   }
 
   bool is_in_loop()
@@ -506,11 +498,6 @@ public:
   ///
   /// \param guard guard (should consist of a conjuction of guards from the outer most to the inner most if expression)
   void set_iter_guard(guard_exprt &guard);
-
-  /// Returns the last loop iteration for a given guard expr (must match
-  /// the last guard of a loop iteration)
-  /// \return nullptr if no loop iteration found
-  loopt *get_loop_for_guard_symbol(exprt guard_expr);
 
   void emit(std::ostream &os);
 

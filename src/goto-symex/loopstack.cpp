@@ -144,7 +144,7 @@ operator<<(std::ostream &os, const guard_variablest &guard_variables)
   return os;
 }
 
-loop_iteration::loop_iteration(
+loop_iterationt::loop_iterationt(
   size_t id,
   loopt *loop,
   size_t start_scope,
@@ -153,15 +153,7 @@ loop_iteration::loop_iteration(
 {
 }
 
-void loopt::add_used_after(dstringt var)
-{
-  if(getenv("LOG_LOOP_MERGE") != nullptr || getenv("LOG_LOOP"))
-  {
-    std::cerr << "loop" << id << " use after " << var << "\n";
-  }
-  used_after.emplace(var);
-}
-bool loop_iteration::contains_variables() const
+bool loop_iterationt::contains_variables() const
 {
   for(size_t i = start_scope; i <= end_scope; i++)
   {
@@ -174,7 +166,7 @@ bool loop_iteration::contains_variables() const
   return false;
 }
 
-const loop_iter_variablest &loop_iteration::get_variables() const
+const loop_iter_variablest &loop_iterationt::get_variables() const
 {
   if(!variables)
   {
@@ -261,17 +253,18 @@ void loopt::push_iteration(size_t end_scope_of_last, size_t start_scope)
 {
   if(!iterations.empty())
   {
-    assert(iterations.back().get_end_scope() == 0);
-    iterations.back().set_end_scope(end_scope_of_last);
+    assert(iterations.back()->get_end_scope() == 0);
+    iterations.back()->set_end_scope(end_scope_of_last);
   }
-  iterations.emplace_back(iterations.size(), this, start_scope, 0);
+  iterations.emplace_back(
+    util_make_unique<loop_iterationt>(iterations.size(), this, start_scope, 0));
 }
 
 void loopt::end_loop(size_t end_scope)
 {
-  assert(iterations.back().get_end_scope() == 0);
-  iterations.back().set_end_scope(end_scope);
-  assert(!iterations.back().contains_variables());
+  assert(iterations.back()->get_end_scope() == 0);
+  iterations.back()->set_end_scope(end_scope);
+  assert(!iterations.back()->contains_variables());
   iterations.pop_back();
 }
 
@@ -352,9 +345,9 @@ optionalt<dstringt> loopt::first_guard() const
 
 void loopt::process_assigned_guard_var(dstringt var)
 {
-  if(!iterations.empty() && !iterations.back().get_guard())
+  if(!iterations.empty() && !iterations.back()->get_guard())
   {
-    iterations.back().set_guard(var);
+    iterations.back()->set_guard(var);
   }
 }
 
@@ -364,7 +357,6 @@ loopt::get_loop_iter_input() const
   auto &vars = first_iteration().get_variables();
   auto &all_read = vars.get_accessed();
   auto &written = vars.get_written();
-  std::cerr << "vars     = " << vars << "\n";
   std::vector<dstringt> input;
   std::vector<dstringt> misc_input;
   for(const auto &var : all_read.get_var_bases())
@@ -408,20 +400,8 @@ void loop_stackt::set_iter_guard(guard_exprt &guard)
     {
       //std::cerr << "# set iter guard " << guard.as_expr().to_string2() << " to loop " << last.id << "\n";
       last.add_guard(guard);
-      guard_symbol_to_loop.emplace(to_symbol_expr(guard.last_guard()), last.id);
     }
   }
-}
-
-loopt *loop_stackt::get_loop_for_guard_symbol(exprt guard_expr)
-{
-  auto symbol = to_symbol_expr(guard_expr);
-
-  if(guard_symbol_to_loop.find(symbol) == guard_symbol_to_loop.end())
-  {
-    return nullptr;
-  }
-  return &loops.at(guard_symbol_to_loop.at(symbol));
 }
 
 void loop_stackt::emit(std::ostream &os)
@@ -433,7 +413,7 @@ void loop_stackt::emit(std::ostream &os)
   }
   for(const auto &loop : loops)
   {
-    os << loop;
+    os << *loop << "\n";
   }
   os << abstract_recursion();
 }
@@ -475,7 +455,7 @@ void loop_stackt::push_back_loop(
   push_back_scope();
   auto parent = !loop_stack.empty() ? optionalt<size_t>(loop_stack.back())
                                     : optionalt<size_t>();
-  loops.emplace_back(
+  loops.emplace_back(util_make_unique<loopt>(
     loops.size(),
     func_id,
     loop_nr,
@@ -485,8 +465,8 @@ void loop_stackt::push_back_loop(
     context_guard,
     before_id,
     func_id
-      .empty() /*should_fully_over_approximate(calling_location)*/); // dtodo: improve
-  loop_stack.push_back(loops.back().id);
+      .empty() /*should_fully_over_approximate(calling_location)*/)); // dtodo: improve
+  loop_stack.push_back(loops.back()->id);
   if(getenv("LOG_LOOP") != nullptr)
   {
     std::cerr << "start loop " << current_loop().id << "\n";

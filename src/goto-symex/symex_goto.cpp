@@ -881,62 +881,6 @@ static void merge_names(
               << pointer_offset_bits(new_lhs.type(), ns).value_or(0) << " bits]"
               << messaget::eom;
     });
-  bool do_log_loop = getenv("LOG_LOOP") != nullptr;
-  bool do_log_loop_merges = getenv("LOG_LOOP_MERGE") != nullptr;
-  // find the phi whose first guard part is the guard of the last loop iteration
-  // negated
-  if(do_log_loop_merges)
-  {
-    std::cerr << "merge_names " << new_lhs.to_string2() << " = "
-              << rhs.to_string2() << "\n";
-  }
-  if(rhs.has_operands())
-  {
-    if(do_log_loop_merges)
-    {
-      std::cerr << "merge_names and has operands" << new_lhs.to_string2()
-                << " = " << rhs.to_string2() << "\n";
-    }
-    if(rhs.id() == ID_if)
-    {
-      auto if_expr = to_if_expr(rhs);
-      auto cond = if_expr.cond();
-      if(do_log_loop_merges)
-      {
-        std::cerr << " ~> cond " << cond.to_string2() << "\n";
-      }
-      auto first_part = cond.id() == ID_and ? cond.operands().back() : cond;
-      auto first_part_part =
-        first_part.id() == ID_not ? first_part.operands().back() : first_part;
-      if(
-        first_part_part.id() == ID_symbol ||
-        first_part_part.id() == ID_identifier)
-      {
-        if(do_log_loop_merges)
-        {
-          std::cerr << " ~> identifier " << first_part_part.to_string2()
-                    << "\n";
-        }
-        auto loop = ls_stack.get_loop_for_guard_symbol(first_part_part);
-        if(loop != nullptr && loop->in_last_iteration())
-        {
-          if(do_log_loop_merges || do_log_loop)
-          {
-            std::cerr << " found loop " << loop->id << " "
-                      << (loop->first_guard().has_value()
-                            ? loop->first_guard().value()
-                            : "no guard")
-                      << " "
-                      << "for " << new_lhs.to_string2() << " = "
-                      << rhs.to_string2() << "\n";
-          }
-          loop->add_used_after(new_lhs.get_identifier());
-        }
-      }
-    }
-  }
-  //to_if_expr(rhs).make_over_approximating();
-  //std::cerr << "#~#" << __LINE__ << " " << new_lhs.to_string2() << "\n";
   target.assignment(
     true_exprt(),
     new_lhs,
