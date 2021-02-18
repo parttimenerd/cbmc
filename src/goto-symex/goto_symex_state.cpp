@@ -922,6 +922,7 @@ dstringt goto_symex_statet::assign_to_new_if_non_symbol(
 {
   if(expr.id() != ID_symbol)
   {
+    namespacet ns2{symbol_table};
     auto renamed = rename(expr, ns);
     auto fresh = get_fresh_aux_symbol(
       renamed.get().type(),
@@ -929,13 +930,16 @@ dstringt goto_symex_statet::assign_to_new_if_non_symbol(
       "",
       source.pc->source_location,
       mode,
+      ns2,
       symbol_table);
     auto fresh_symbol = fresh.symbol_expr();
     exprt::operandst lhs_conditions;
-    auto lhs = rename_ssa<L1>(ssa_exprt{fresh_symbol}, ns).get();
-    auto ret = assignment(lhs, expr, ns, true, true);
+    ssa_exprt ssa{fresh_symbol};
+
+    auto lhs = rename_ssa<L1>(ssa, ns2).get();
+    auto ret = assignment(ssa, expr, ns2, true, true);
     const guardt guard(true_exprt(), guard_manager);
-    auto rhs_ssa = rename(expr, ns).get();
+    auto rhs_ssa = rename(expr, ns2).get();
     symex_target->assignment(
       guard.as_expr(),
       lhs,
