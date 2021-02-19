@@ -22,6 +22,8 @@ using assign_unknownt = std::function<void(dstringt)>;
 
 bool is_guard(dstringt var);
 
+bool is_oa_constant(dstringt var);
+
 /// should a loop be marked to be fully approximated (without counting the real variability of the inputs)?
 /// helpful for loops that are known to be unimportant
 bool should_fully_over_approximate(dstringt function_id);

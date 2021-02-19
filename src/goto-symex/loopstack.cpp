@@ -225,15 +225,15 @@ std::ostream &operator<<(std::ostream &os, const loopt &loop)
            ? std::to_string(loop.parent_loop_id.value())
            : "-1");
   os << " | sfoa " << loop.should_fully_over_approximate;
-  os << " | guards ";
+  os << " | guards";
   if(!loop.guards.empty())
   {
-    os << get_guard_variables(loop.guards.back(), 1);
+    os << " " << get_guard_variables(loop.guards.back(), 1);
   }
-  os << " | lguard ";
+  os << " | lguard";
   if(!loop.guards.empty())
   {
-    os << loop.guards.back().last_guard().to_string2();
+    os << " " << loop.guards.back().last_guard().to_string2();
   }
   auto &last_iter = loop.last_loop_iter;
   os << " | linput";
@@ -283,7 +283,9 @@ void loopt::begin_last_loop_iteration(
   std::vector<dstringt> new_input;
   for(const auto &var : std::get<0>(input))
   {
-    if(!is_guard(var) && std::get<1>(split_var(resolve(l0_name(var)))) > 0)
+    if(
+      !is_guard(var) && (std::get<1>(split_var(resolve(l0_name(var)))) > 0 ||
+                         is_oa_constant(resolve(l0_name(var)))))
     {
       new_input.push_back(var);
     }

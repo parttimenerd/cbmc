@@ -130,6 +130,11 @@ bool is_guard(dstringt var)
   return strstr(var.c_str(), "::\\guard") != nullptr;
 }
 
+bool is_oa_constant(dstringt var)
+{
+  return strstr(var.c_str(), "oa_constant::") != nullptr;
+}
+
 bool should_fully_over_approximate(dstringt function_id)
 {
   return strstr(function_id.c_str(), "__CPROVER__start") != nullptr;
