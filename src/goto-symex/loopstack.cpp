@@ -7,6 +7,7 @@
 #include <cstring>
 #include <expr_iterator.h>
 #include <string_utils.h>
+#include "ls_rec_graph.h"
 
 std::ostream &operator<<(std::ostream &os, const variablest &variables)
 {

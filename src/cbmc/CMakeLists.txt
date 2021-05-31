@@ -32,7 +32,7 @@ add_if_library(cbmc-lib bv_refinement)
 add_if_library(cbmc-lib jsil)
 
 # Executable
-add_executable(cbmc cbmc_main.cpp ../goto-symex/loopstack.cpp ../goto-symex/loopstack.hpp)
+add_executable(cbmc cbmc_main.cpp ../goto-symex/loopstack.cpp ../goto-symex/ls_rec_graph.cpp ../goto-symex/loopstack.hpp)
 target_link_libraries(cbmc cbmc-lib)
 install(TARGETS cbmc DESTINATION ${CMAKE_INSTALL_BINDIR})
 
