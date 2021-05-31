@@ -14,6 +14,7 @@ Author: Johannes Bechberger, johannes.bechberger@kit.edu
 #include <goto-programs/abstract_goto_model.h>
 
 #include <ostream>
+#include <unordered_set>
 #include <utility>
 
 using dstringt_set = std::unordered_set<dstringt>;

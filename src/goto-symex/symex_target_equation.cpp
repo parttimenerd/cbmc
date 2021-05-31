@@ -19,6 +19,7 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <solvers/decision_procedure.h>
 #include <solvers/hardness_collector.h>
 
+#include "loopstack.hpp"
 #include "ssa_step.h"
 
 static hardness_collectort::handlert

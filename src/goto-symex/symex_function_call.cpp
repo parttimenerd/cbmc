@@ -303,8 +303,7 @@ void goto_symext::symex_function_call_code(
     {
       const auto rhs =
         side_effect_expr_nondett(call.lhs().type(), call.source_location());
-      code_assignt code(call.lhs(), rhs);
-      symex_assign(state, code);
+      symex_assign(state, call.lhs(), rhs);
     }
     symex_transition(state);
     return;

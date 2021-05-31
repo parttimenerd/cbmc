@@ -113,7 +113,7 @@ dstringt_set get_called_functions(const goto_functiont &func)
   {
     if(instruction.type == goto_program_instruction_typet::FUNCTION_CALL)
     {
-      auto &call = to_code_function_call(instruction.code);
+      auto &call = to_code_function_call(instruction.get_code());
       auto &called_func = to_symbol_expr(call.function());
       ret.emplace(called_func.get_identifier());
     }
@@ -191,7 +191,7 @@ ls_infot ls_infot::create(const goto_functionst &functions)
     {
       if(instruction.type == goto_program_instruction_typet::ASSIGN)
       {
-        auto &assign = to_code_assign(instruction.code);
+        auto &assign = to_code_assign(instruction.get_code());
         if(assign.lhs().id() == ID_index)
         {
           auto &lhs = to_index_expr(assign.lhs());

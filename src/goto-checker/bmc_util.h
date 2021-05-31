@@ -31,6 +31,7 @@ class symex_bmct;
 class symex_target_equationt;
 struct trace_optionst;
 class ui_message_handlert;
+class goto_functionst;
 
 void convert_symex_target_equation(
   symex_target_equationt &equation,

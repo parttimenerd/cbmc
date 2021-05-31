@@ -7,7 +7,6 @@
 #include <cstring>
 #include <expr_iterator.h>
 #include <string_utils.h>
-#include <symbol.h>
 
 std::ostream &operator<<(std::ostream &os, const variablest &variables)
 {

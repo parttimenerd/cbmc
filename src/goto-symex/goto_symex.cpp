@@ -41,9 +41,9 @@ void goto_symext::symex_assign(
   const exprt &o_lhs,
   const exprt &o_rhs)
 {
-  exprt lhs = clean_expr(code.lhs(), state, true);
+  exprt lhs = clean_expr(o_lhs, state, true);
 
-  exprt rhs = clean_expr(code.rhs(), state, false);
+  exprt rhs = clean_expr(o_rhs, state, false);
 
   DATA_INVARIANT(
     lhs.type() == rhs.type(), "assignments must be type consistent");
