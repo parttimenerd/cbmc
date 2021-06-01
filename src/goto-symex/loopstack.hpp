@@ -274,6 +274,7 @@ public:
   /// guard in the context (remove later all guards that are part of the guards variable)
   const guardt context_guard;
 
+  /// hint on whether the loop can be safely fully over approximated, dtodo: improve
   const bool should_fully_over_approximate;
 
 private:

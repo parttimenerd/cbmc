@@ -69,7 +69,9 @@ public:
   const dstringt func_name;
 
 protected:
+  /// read (global) variables
   const name_mappingt input;
+  /// written (global) variables
   const name_mappingt output;
 
   ls_recursion_baset(
@@ -88,7 +90,9 @@ protected:
 /// create via the create method and finish it via the assign_written method
 class ls_recursion_childt : public ls_recursion_baset
 {
+  /// id of the specific recursive application (counting from 0 onwards on each creation)
   const size_t id;
+  /// guard that has is satisfied on the start of this recursive application
   const guardt guard;
 
   ls_recursion_childt(
@@ -104,6 +108,9 @@ class ls_recursion_childt : public ls_recursion_baset
   }
 
 public:
+  /// Emits a line in the following format:
+  /// "c rec child [id of this application] [name of the function] | input [input/read var 1] [instantiation 1] […] |
+  /// output [output/written var 1] [instantiation 1] | constraint ['-' if negative][constraint var 1] […]"
   friend std::ostream &
   operator<<(std::ostream &os, const ls_recursion_childt &child);
 
@@ -132,6 +139,7 @@ public:
   }
 
 public:
+  /// format: "c rec node [func name] | input [input var 1] [instantiation 1] […] | output [output var 1] [instantiation 1] […]"
   friend std::ostream &
   operator<<(std::ostream &os, const ls_recursion_nodet &nodet);
 };

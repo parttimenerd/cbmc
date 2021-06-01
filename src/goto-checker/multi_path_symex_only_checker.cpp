@@ -86,10 +86,6 @@ void multi_path_symex_only_checkert::generate_equation()
   log.status() << "Runtime Symex: " << symex_runtime.count() << "s"
                << messaget::eom;
 
-  symex.symex_from_entry_point_of(
-    goto_model.get_goto_functions(),
-    goto_symext::get_goto_function(goto_model),
-    symex_symbol_table);
   postprocess_equation(symex, equation, options, ns, ui_message_handler);
 }
 
