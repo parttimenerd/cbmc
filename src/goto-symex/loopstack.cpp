@@ -23,6 +23,26 @@ std::ostream &operator<<(std::ostream &os, const variablest &variables)
   return os << ")";
 }
 
+template<typename T>
+std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec)
+{
+  bool first = true;
+  os << "[";
+  for(const auto &item : vec)
+  {
+    if(first)
+    {
+      os << item;
+      first = false;
+    }
+    else
+    {
+      os << ", " << item;
+    }
+  }
+  return os << "]";
+}
+
 std::unordered_map<dstringt, size_t> variablest::get_first() const
 {
   std::unordered_map<dstringt, size_t> ret;
@@ -406,7 +426,7 @@ void loop_stackt::set_iter_guard(guard_exprt &guard)
   }
 }
 
-void loop_stackt::emit(std::ostream &os)
+void loop_stackt::emit(std::ostream &os) const
 {
   if(!is_initialized)
   {

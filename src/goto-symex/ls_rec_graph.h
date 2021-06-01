@@ -136,8 +136,9 @@ public:
   operator<<(std::ostream &os, const ls_recursion_nodet &nodet);
 };
 
-struct requested_functiont
+class requested_functiont
 {
+public:
   const symbol_exprt identifier;
 
   dstringt name() const
@@ -170,6 +171,8 @@ struct hash<requested_functiont>
 };
 } // namespace std
 
+/// Exception used to for aborting an abstract recursion,
+/// used to simplify the control flow (pierces through a long call chain)
 class bring_back_exceptiont : public std::exception
 {
 public:

@@ -7,7 +7,7 @@ Author: Johannes Bechberger, johannes.bechberger@kit.edu
 \*******************************************************************/
 
 /// \file
-/// Stack of variables accessed and altered in loops
+/// Stack of variables accessed and altered in loops and helper classes
 
 #ifndef CBMC_LOOPSTACK_HPP
 #define CBMC_LOOPSTACK_HPP
@@ -24,6 +24,7 @@ Author: Johannes Bechberger, johannes.bechberger@kit.edu
 #include <utility>
 #include <vector>
 
+/// a set of variables (and there different L3 versions related to their L2 versions)
 class variablest
 {
   std::unordered_map<dstringt, std::set<size_t>> var_map;
@@ -60,6 +61,8 @@ public:
 
 class symex_target_equationt;
 
+/// A scope (related to a specific loop iteration or recursion)
+/// with an optional guard and assigned and accessed variables
 class scopet
 {
 public:
@@ -97,24 +100,7 @@ public:
 };
 
 template <typename T>
-std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec)
-{
-  bool first = true;
-  os << "[";
-  for(const auto &item : vec)
-  {
-    if(first)
-    {
-      os << item;
-      first = false;
-    }
-    else
-    {
-      os << ", " << item;
-    }
-  }
-  return os << "]";
-}
+std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec);
 
 class loop_iter_variablest
 {
@@ -149,9 +135,9 @@ public:
   }
 };
 
-struct loopt;
+class loopt;
 
-/// last loop iteration
+/// a loop iteration
 class loop_iterationt
 {
 public:
@@ -270,8 +256,10 @@ get_guard_variables(const guard_exprt &guard, size_t omit_last = 0);
 std::ostream &
 operator<<(std::ostream &os, const guard_variablest &guard_variables);
 
-struct loopt
+/// a loop with a set of loop iterations
+class loopt
 {
+public:
   const size_t id;
 
   const dstringt func_id;
@@ -354,7 +342,7 @@ public:
   void end_loop(size_t end_scope);
   void add_guard(guard_exprt &iter_guard);
 
-  bool in_last_iteration()
+  bool in_last_iteration() const
   {
     return last_loop_iter.has_value();
   }
@@ -395,6 +383,7 @@ public:
   void end_loop(const resolvet &resolve, const assign_unknownt &assign_unknown);
 };
 
+/// nested loops that form a stack
 class loop_stackt
 {
   std::vector<scopet> scopes;
@@ -409,6 +398,12 @@ class loop_stackt
   bool is_initialized = false;
 
 public:
+
+  loop_stackt()
+  {
+    push_back_scope();
+  }
+
   void init(const goto_functionst &functions)
   {
     if(!is_initialized)
@@ -431,12 +426,17 @@ public:
     return *rec_nodes;
   }
 
-  const std::vector<scopet> &get_scopes()
+  const ls_recursion_node_dbt &abstract_recursion() const
+  {
+    return *rec_nodes;
+  }
+
+  const std::vector<scopet> &get_scopes() const
   {
     return scopes;
   }
 
-  const std::vector<std::unique_ptr<loopt>> &get_loops()
+  const std::vector<std::unique_ptr<loopt>> &get_loops() const
   {
     return loops;
   }
@@ -444,11 +444,6 @@ public:
   const scopet &get_scope(size_t id) const
   {
     return scopes.at(id);
-  }
-
-  loop_stackt()
-  {
-    push_back_scope();
   }
 
   scopet &current_scope()
@@ -472,7 +467,7 @@ public:
     return *loops.at(loop_stack.back());
   }
 
-  bool is_in_loop()
+  bool is_in_loop() const
   {
     return !loop_stack.empty();
   }
@@ -483,8 +478,10 @@ public:
     const resolvet &resolve,
     const assign_unknownt &assign_unknown);
 
+  /// record assignment of variable
   void assign(dstringt id);
 
+  /// record access of variable
   void access(dstringt id);
 
   std::vector<dstringt> variables(
@@ -499,8 +496,11 @@ public:
   /// \param guard guard (should consist of a conjuction of guards from the outer most to the inner most if expression)
   void set_iter_guard(guard_exprt &guard);
 
-  void emit(std::ostream &os);
+  void emit(std::ostream &os) const;
 
+  /// destructor that emits the loops to standard out on destruction,
+  /// this ensures that the loops are eventually emitted after all
+  /// loops are processed
   ~loop_stackt()
   {
     emit(std::cout);

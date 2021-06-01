@@ -94,7 +94,7 @@ public:
   friend std::ostream &operator<<(std::ostream &os, const ls_func_info &info);
 };
 
-/// precomputed information on (currently) functions
+/// precomputed information on functions
 class ls_infot
 {
   std::unordered_map<dstringt, ls_func_info> func_infos;

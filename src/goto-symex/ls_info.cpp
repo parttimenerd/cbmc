@@ -277,7 +277,6 @@ ls_infot ls_infot::create(const goto_functionst &functions)
       }
     }
   }
-  //std::cerr << ls_infot(func_infos) << "\n"; std::exit(1);
   return ls_infot(func_infos);
 }
 

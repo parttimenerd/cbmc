@@ -36,6 +36,7 @@ class loop_stackt;
 /// the base class by providing a conversion interface for decision procedures.
 class symex_target_equationt:public symex_targett
 {
+  /// the currently used loop stack
   loop_stackt *stack = nullptr;
 
 public:
@@ -46,6 +47,7 @@ public:
 
   void set_loop_stack(loop_stackt *new_stack)
   {
+    assert(stack == nullptr);
     this->stack = new_stack;
   }
 
