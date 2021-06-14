@@ -157,6 +157,17 @@ aborted during this execution (this is evident from the dependencies of the vari
 The format of `c rec node` is: `c rec node [func name] | input [input var 1] [instantiation 1] […] | output [output var 1] [instantiation 1] […]`.
 The abstract recursions take place after the program itself is fully processed.
 
+Relations
+---------
+The output line `c __rel__ [to] [from 1] […] [from n]` states that there is a dependency from `[from 1]`, …, `[from n]`
+to `[to]` in the underlying linearized program (either control or data dependency).
+
+Caveats of the current technique
+- cycles are possible
+- over approximation
+- currently work in progress
+- not supported in dsharpy (for now)
+
 Options
 -------
 

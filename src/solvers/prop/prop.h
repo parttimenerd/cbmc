@@ -14,6 +14,7 @@ Author: Daniel Kroening, kroening@kroening.com
 
 #include <util/message.h>
 #include <util/threeval.h>
+#include <stack>
 
 #include "literal.h"
 
@@ -56,7 +57,7 @@ public:
   void lcnf(literalt l0, literalt l1)
   { lcnf_bv.resize(2); lcnf_bv[0]=l0; lcnf_bv[1]=l1; lcnf(lcnf_bv); }
 
-  void lcnf(literalt l0, literalt l1, literalt l2)
+  virtual void lcnf(literalt l0, literalt l1, literalt l2)
   {
     lcnf_bv.resize(3);
     lcnf_bv[0]=l0;
@@ -119,6 +120,18 @@ public:
 
   std::size_t get_number_of_solver_calls() const;
 
+  // the control deps are managed by control structures (push and pop),
+  // the control deps are forwarded to the prop
+  void push_control_dep(const literalt c)
+  {
+    control_deps.push(c);
+  }
+
+  void pop_control_dep()
+  {
+    control_deps.pop();
+  }
+
 protected:
   virtual resultt do_prop_solve() = 0;
 
@@ -127,6 +140,7 @@ protected:
 
   messaget log;
   std::size_t number_of_solver_calls = 0;
+  std::stack<literalt> control_deps;
 };
 
 #endif // CPROVER_SOLVERS_PROP_PROP_H

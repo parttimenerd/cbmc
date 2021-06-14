@@ -28,18 +28,18 @@ void cnft::gate_and(literalt a, literalt b, literalt o)
 
   lits[0]=pos(a);
   lits[1]=neg(o);
-  lcnf(lits);
+  relationless_lcnf(lits);
 
   lits[0]=pos(b);
   lits[1]=neg(o);
-  lcnf(lits);
+  relationless_lcnf(lits);
 
   lits.clear();
   lits.reserve(3);
   lits.push_back(neg(a));
   lits.push_back(neg(b));
   lits.push_back(pos(o));
-  lcnf(lits);
+  relationless_lcnf(lits);
 }
 
 /// Tseitin encoding of disjunction of two literals
@@ -51,17 +51,17 @@ void cnft::gate_or(literalt a, literalt b, literalt o)
 
   lits[0]=neg(a);
   lits[1]=pos(o);
-  lcnf(lits);
+  relationless_lcnf(lits);
 
   lits[0]=neg(b);
   lits[1]=pos(o);
-  lcnf(lits);
+  relationless_lcnf(lits);
 
   lits.resize(3);
   lits[0]=pos(a);
   lits[1]=pos(b);
   lits[2]=neg(o);
-  lcnf(lits);
+  relationless_lcnf(lits);
 }
 
 /// Tseitin encoding of XOR of two literals
@@ -77,22 +77,22 @@ void cnft::gate_xor(literalt a, literalt b, literalt o)
   lits[0]=neg(a);
   lits[1]=neg(b);
   lits[2]=neg(o);
-  lcnf(lits);
+  relationless_lcnf(lits);
 
   lits[0]=pos(a);
   lits[1]=pos(b);
   lits[2]=neg(o);
-  lcnf(lits);
+  relationless_lcnf(lits);
 
   lits[0]=neg(a);
   lits[1]=pos(b);
   lits[2]=pos(o);
-  lcnf(lits);
+  relationless_lcnf(lits);
 
   lits[0]=pos(a);
   lits[1]=neg(b);
   lits[2]=pos(o);
-  lcnf(lits);
+  relationless_lcnf(lits);
 }
 
 /// Tseitin encoding of NAND of two literals
@@ -104,17 +104,17 @@ void cnft::gate_nand(literalt a, literalt b, literalt o)
 
   lits[0]=pos(a);
   lits[1]=pos(o);
-  lcnf(lits);
+  relationless_lcnf(lits);
 
   lits[0]=pos(b);
   lits[1]=pos(o);
-  lcnf(lits);
+  relationless_lcnf(lits);
 
   lits.resize(3);
   lits[0]=neg(a);
   lits[1]=neg(b);
   lits[2]=neg(o);
-  lcnf(lits);
+  relationless_lcnf(lits);
 }
 
 /// Tseitin encoding of NOR of two literals
@@ -126,17 +126,17 @@ void cnft::gate_nor(literalt a, literalt b, literalt o)
 
   lits[0]=neg(a);
   lits[1]=neg(o);
-  lcnf(lits);
+  relationless_lcnf(lits);
 
   lits[0]=neg(b);
   lits[1]=neg(o);
-  lcnf(lits);
+  relationless_lcnf(lits);
 
   lits.resize(3);
   lits[0]=pos(a);
   lits[1]=pos(b);
   lits[2]=pos(o);
-  lcnf(lits);
+  relationless_lcnf(lits);
 }
 
 /// Tseitin encoding of equality between two literals
@@ -181,7 +181,7 @@ literalt cnft::land(const bvt &bv)
   for(const auto &l : new_bv)
   {
     lits[0]=pos(l);
-    lcnf(lits);
+    relationless_lcnf(lits);
   }
 
   lits.clear();
@@ -191,8 +191,11 @@ literalt cnft::land(const bvt &bv)
     lits.push_back(neg(l));
 
   lits.push_back(pos(literal));
-  lcnf(lits);
-
+  relationless_lcnf(lits);
+  for (const auto &lit : new_bv)
+  {
+    relate(lit, literal);
+  }
   return literal;
 }
 
@@ -224,7 +227,7 @@ literalt cnft::lor(const bvt &bv)
   for(const auto &l : new_bv)
   {
     lits[0]=neg(l);
-    lcnf(lits);
+    relationless_lcnf(lits);
   }
 
   lits.clear();
@@ -234,8 +237,11 @@ literalt cnft::lor(const bvt &bv)
     lits.push_back(pos(l));
 
   lits.push_back(neg(literal));
-  lcnf(lits);
-
+  relationless_lcnf(lits);
+  for (const auto &lit : new_bv)
+  {
+    relate(lit, literal);
+  }
   return literal;
 }
 
@@ -272,6 +278,8 @@ literalt cnft::land(literalt a, literalt b)
 
   literalt o=new_variable();
   gate_and(a, b, o);
+  relate(a, o);
+  relate(b, o);
   return o;
 }
 
@@ -288,6 +296,8 @@ literalt cnft::lor(literalt a, literalt b)
 
   literalt o=new_variable();
   gate_or(a, b, o);
+  relate(a, o);
+  relate(b, o);
   return o;
 }
 
@@ -310,6 +320,8 @@ literalt cnft::lxor(literalt a, literalt b)
 
   literalt o=new_variable();
   gate_xor(a, b, o);
+  relate(a, o);
+  relate(b, o);
   return o;
 }
 
@@ -361,17 +373,21 @@ literalt cnft::lselect(literalt a, literalt b, literalt c)
 
   literalt o=new_variable();
 
+  relate(a, o);
+  relate(b, o);
+  relate(c, o);
+
   bvt lits;
 
-  lcnf(a, !c,  o);
-  lcnf(a,  c, !o);
-  lcnf(!a, !b,  o);
-  lcnf(!a,  b, !o);
+  relationless_lcnf(a, !c,  o);
+  relationless_lcnf(a,  c, !o);
+  relationless_lcnf(!a, !b,  o);
+  relationless_lcnf(!a,  b, !o);
 
   #ifdef OPTIMAL_COMPACT_ITE
   // additional clauses to enable better propagation
-  lcnf(b,  c, !o);
-  lcnf(!b, !c,  o);
+  relationless_lcnf(b,  c, !o);
+  relationless_lcnf(!b, !c,  o);
   #endif
 
   return o;
@@ -388,7 +404,10 @@ literalt cnft::new_variable()
   literalt l(_no_variables, false);
 
   set_no_variables(_no_variables+1);
-
+  if (!control_deps.empty())
+  {
+    relate(control_deps.top(), l);
+  }
   return l;
 }
 
@@ -497,4 +516,18 @@ bool cnft::process_clause(const bvt &bv, bvt &dest) const
   }
 
   return false;
+}
+
+void cnft::lcnf(const bvt &bv)
+{
+  for (const auto &lit1 : bv)
+  {
+    for (const auto &lit2 : bv)
+    {
+      if (lit1 != lit2)
+      {
+        relate(lit1, lit2);
+      }
+    }
+  }
 }

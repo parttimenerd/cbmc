@@ -28,6 +28,7 @@ goto_symex_property_decidert::goto_symex_property_decidert(
     ui_message_handler,
     ui_message_handler.get_ui() == ui_message_handlert::uit::XML_UI);
   solver = solvers.get_solver();
+  // dtodo: set loop stack in solvers somewhere here → replace the old destructor based approach
 }
 
 exprt goto_symex_property_decidert::goalt::as_expr() const

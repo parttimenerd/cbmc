@@ -41,6 +41,7 @@ bvt boolbvt::convert_cond(const cond_exprt &expr)
       {
         cond_literal=convert(*it);
         cond_literal=prop.land(!previous_cond, cond_literal);
+        prop.push_control_dep(cond_literal);
 
         previous_cond=prop.lor(previous_cond, cond_literal);
       }
@@ -54,6 +55,10 @@ bvt boolbvt::convert_cond(const cond_exprt &expr)
       }
 
       condition=!condition;
+    }
+    for (size_t i = 0; i < expr.operands().size(); i += 2)
+    {
+      prop.pop_control_dep();
     }
   }
   else
@@ -71,11 +76,12 @@ bvt boolbvt::convert_cond(const cond_exprt &expr)
       const exprt &value=expr.operands()[i-1];
 
       literalt cond_literal=convert(cond);
-
+      prop.push_control_dep(cond_literal);
       const bvt &op = convert_bv(value, bv.size());
 
       for(std::size_t j = 0; j < bv.size(); j++)
         bv[j] = prop.lselect(cond_literal, op[j], bv[j]);
+      prop.pop_control_dep();
     }
   }
 

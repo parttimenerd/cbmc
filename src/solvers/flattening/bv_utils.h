@@ -215,6 +215,17 @@ public:
   literalt verilog_bv_has_x_or_z(const bvt &);
   static bvt verilog_bv_normal_bits(const bvt &);
 
+  // the control deps are managed by control structures (push and pop),
+  void push_control_dep(const literalt c)
+  {
+    prop.push_control_dep(c);
+  }
+
+  void pop_control_dep()
+  {
+    prop.pop_control_dep();
+  }
+
 protected:
   propt &prop;
 

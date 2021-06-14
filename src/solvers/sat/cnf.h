@@ -20,7 +20,11 @@ public:
   // For CNF, we don't use index 0 as a matter of principle,
   // so we'll start counting variables at 1.
   explicit cnft(message_handlert &message_handler)
-    : propt(message_handler), _no_variables(1)
+    : cnft(message_handler, false)
+  {
+  }
+  cnft(message_handlert &message_handler, bool supports_relations)
+          : propt(message_handler), _no_variables(1), supports_relations(supports_relations)
   {
   }
   virtual ~cnft() { }
@@ -51,10 +55,25 @@ protected:
   void gate_nor(literalt a, literalt b, literalt o);
   void gate_equal(literalt a, literalt b, literalt o);
   void gate_implies(literalt a, literalt b, literalt o);
+  virtual void relationless_lcnf(const bvt &bv)
+  {
+    assert(!supports_relations);
+    lcnf(bv);
+  }
+  void relationless_lcnf(literalt l0, literalt l1, literalt l2)
+  {
+    lcnf_bv.resize(3);
+    lcnf_bv[0]=l0;
+    lcnf_bv[1]=l1;
+    lcnf_bv[2]=l2;
+    relationless_lcnf(lcnf_bv);
+  }
 
   static bvt eliminate_duplicates(const bvt &);
 
   size_t _no_variables;
+
+  bool supports_relations;
 
   bool process_clause(const bvt &bv, bvt &dest) const;
 

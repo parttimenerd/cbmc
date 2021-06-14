@@ -15,8 +15,20 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <list>
 
 #include <util/threeval.h>
+#include <memory>
 
 #include "cnf.h"
+
+class relationst
+{
+public:
+  void relate(literalt from, literalt to);
+  // format: "[to] [from 1] … [from n]\n[…]"
+  void write_relations(std::ostream &out);
+private:
+  // there is a relation (x, i) for every element x in the vector at index i (in the top level vector)
+  std::vector<std::vector<literalt::var_not>> relations;
+};
 
 // CNF given as a list of clauses
 
@@ -24,12 +36,10 @@ class cnf_clause_listt:public cnft
 {
 public:
   explicit cnf_clause_listt(message_handlert &message_handler)
-    : cnft(message_handler)
+    : cnft(message_handler, true)
   {
   }
   virtual ~cnf_clause_listt() { }
-
-  void lcnf(const bvt &bv) override;
 
   const std::string solver_text() override
   { return "CNF clause list"; }
@@ -76,13 +86,20 @@ public:
     return result;
   }
 
+  void relate(literalt from, literalt to) override
+  {
+    relations.relate(from, to);
+  }
+
 protected:
+  void relationless_lcnf(const bvt &bv) override;
   resultt do_prop_solve() override
   {
     return resultt::P_ERROR;
   }
 
   clausest clauses;
+  relationst relations;
 };
 
 // CNF given as a list of clauses

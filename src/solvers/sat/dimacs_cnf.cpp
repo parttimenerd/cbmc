@@ -95,6 +95,7 @@ void dimacs_cnft::write_clauses(std::ostream &out)
 
   // make sure the final block is printed as well
   out << output_block.str();
+  relations.write_relations(out);
 }
 
 void dimacs_cnf_dumpt::lcnf(const bvt &bv)
