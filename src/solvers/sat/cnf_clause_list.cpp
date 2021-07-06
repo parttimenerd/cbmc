@@ -11,8 +11,8 @@ Author: Daniel Kroening, kroening@kroening.com
 
 #include "cnf_clause_list.h"
 
-#include <ostream>
 #include <iostream>
+#include <ostream>
 
 void cnf_clause_listt::relationless_lcnf(const bvt &bv)
 {
@@ -45,9 +45,9 @@ void cnf_clause_list_assignmentt::copy_assignment_from(const propt &prop)
 
 void relationst::relate(literalt from, literalt to)
 {
-  if (!from.is_constant() && !to.is_constant())
+  if(!from.is_constant() && !to.is_constant())
   {
-    if (relations.size() <= to.var_no())
+    if(relations.size() <= to.var_no())
     {
       relations.resize(to.var_no() + 1);
     }
@@ -60,10 +60,10 @@ void relationst::write_relations(std::ostream &out)
   for(size_t i = 0; i < relations.size(); i++)
   {
     auto &froms = relations.at(i);
-    if (!froms.empty())
+    if(!froms.empty())
     {
       out << "c __rel__ " << i;
-      for (const auto &from : froms)
+      for(const auto &from : froms)
       {
         out << " " << from;
       }

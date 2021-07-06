@@ -192,7 +192,7 @@ literalt cnft::land(const bvt &bv)
 
   lits.push_back(pos(literal));
   relationless_lcnf(lits);
-  for (const auto &lit : new_bv)
+  for(const auto &lit : new_bv)
   {
     relate(lit, literal);
   }
@@ -238,7 +238,7 @@ literalt cnft::lor(const bvt &bv)
 
   lits.push_back(neg(literal));
   relationless_lcnf(lits);
-  for (const auto &lit : new_bv)
+  for(const auto &lit : new_bv)
   {
     relate(lit, literal);
   }
@@ -379,16 +379,16 @@ literalt cnft::lselect(literalt a, literalt b, literalt c)
 
   bvt lits;
 
-  relationless_lcnf(a, !c,  o);
-  relationless_lcnf(a,  c, !o);
-  relationless_lcnf(!a, !b,  o);
-  relationless_lcnf(!a,  b, !o);
+  relationless_lcnf(a, !c, o);
+  relationless_lcnf(a, c, !o);
+  relationless_lcnf(!a, !b, o);
+  relationless_lcnf(!a, b, !o);
 
-  #ifdef OPTIMAL_COMPACT_ITE
+#ifdef OPTIMAL_COMPACT_ITE
   // additional clauses to enable better propagation
-  relationless_lcnf(b,  c, !o);
-  relationless_lcnf(!b, !c,  o);
-  #endif
+  relationless_lcnf(b, c, !o);
+  relationless_lcnf(!b, !c, o);
+#endif
 
   return o;
 
@@ -404,7 +404,7 @@ literalt cnft::new_variable()
   literalt l(_no_variables, false);
 
   set_no_variables(_no_variables+1);
-  if (!control_deps.empty())
+  if(!control_deps.empty())
   {
     relate(control_deps.top(), l);
   }
@@ -520,14 +520,26 @@ bool cnft::process_clause(const bvt &bv, bvt &dest) const
 
 void cnft::lcnf(const bvt &bv)
 {
-  for (const auto &lit1 : bv)
+  for(const auto &lit1 : bv)
   {
-    for (const auto &lit2 : bv)
+    for(const auto &lit2 : bv)
     {
-      if (lit1 != lit2)
+      if(lit1 != lit2)
       {
         relate(lit1, lit2);
       }
     }
   }
+}
+
+literalt cnft::wrap(const literalt &literal)
+{
+  if (literal.is_constant())
+  {
+    return literal;
+  }
+  literalt o=new_variable();
+  gate_or(literal, const_literal(false), o);
+  relate(literal, o);
+  return o;
 }

@@ -12,9 +12,9 @@ Author: Daniel Kroening, kroening@kroening.com
 
 // decision procedure wrapper for boolean propositional logics
 
+#include <stack>
 #include <util/message.h>
 #include <util/threeval.h>
-#include <stack>
 
 #include "literal.h"
 
@@ -131,6 +131,10 @@ public:
   {
     control_deps.pop();
   }
+
+  bvt wrap(const bvt &vector);
+
+  virtual literalt wrap(const literalt &literal) { return literal; }
 
 protected:
   virtual resultt do_prop_solve() = 0;

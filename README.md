@@ -165,8 +165,8 @@ to `[to]` in the underlying linearized program (either control or data dependenc
 Caveats of the current technique
 - cycles are possible
 - over approximation
-- currently work in progress
-- not supported in dsharpy (for now)
+- currently, work in progress
+- partially supported in [dsharpy/information_flow](https://git.scc.kit.edu/gp1285/dsharpy/-/tree/information_flow)
 
 Options
 -------

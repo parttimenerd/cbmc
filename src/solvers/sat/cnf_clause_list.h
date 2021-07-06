@@ -14,8 +14,8 @@ Author: Daniel Kroening, kroening@kroening.com
 
 #include <list>
 
-#include <util/threeval.h>
 #include <memory>
+#include <util/threeval.h>
 
 #include "cnf.h"
 
@@ -25,6 +25,7 @@ public:
   void relate(literalt from, literalt to);
   // format: "[to] [from 1] … [from n]\n[…]"
   void write_relations(std::ostream &out);
+
 private:
   // there is a relation (x, i) for every element x in the vector at index i (in the top level vector)
   std::vector<std::vector<literalt::var_not>> relations;

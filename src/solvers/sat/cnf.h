@@ -24,7 +24,9 @@ public:
   {
   }
   cnft(message_handlert &message_handler, bool supports_relations)
-          : propt(message_handler), _no_variables(1), supports_relations(supports_relations)
+    : propt(message_handler),
+      _no_variables(1),
+      supports_relations(supports_relations)
   {
   }
   virtual ~cnft() { }
@@ -46,6 +48,14 @@ public:
   virtual size_t no_variables() const override { return _no_variables; }
   virtual void set_no_variables(size_t no) { _no_variables=no; }
   virtual size_t no_clauses() const=0;
+  // create a relation from the "from" variable to the "to" variable
+  virtual void relate(literalt from, literalt to)
+  {
+    assert(!supports_relations);
+  }
+  virtual void lcnf(const bvt &bv) override;
+
+  literalt wrap(const literalt &literal) override;
 
 protected:
   void gate_and(literalt a, literalt b, literalt o);
@@ -63,9 +73,9 @@ protected:
   void relationless_lcnf(literalt l0, literalt l1, literalt l2)
   {
     lcnf_bv.resize(3);
-    lcnf_bv[0]=l0;
-    lcnf_bv[1]=l1;
-    lcnf_bv[2]=l2;
+    lcnf_bv[0] = l0;
+    lcnf_bv[1] = l1;
+    lcnf_bv[2] = l2;
     relationless_lcnf(lcnf_bv);
   }
 

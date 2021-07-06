@@ -96,7 +96,6 @@ boolbvt::convert_bv(const exprt &expr, optionalt<std::size_t> expected_width)
   {
     std::cerr << "\n";
   }
-
   return cache_result.first->second;
 }
 
@@ -116,7 +115,7 @@ bvt boolbvt::conversion_failed(const exprt &expr)
 /// \param expr: Expression to convert
 /// \return A vector of literals corresponding to the outputs of the Boolean
 ///   circuit
-bvt boolbvt::convert_bitvector(const exprt &expr)
+bvt boolbvt::convert_bitvector_wo_wrap(const exprt &expr)
 {
   if(expr.type().id()==ID_bool)
     return {convert(expr)};
@@ -244,6 +243,16 @@ bvt boolbvt::convert_bitvector(const exprt &expr)
   }
 
   return conversion_failed(expr);
+}
+
+/// Converts an expression into its gate-level representation and returns a
+/// vector of literals corresponding to the outputs of the Boolean circuit.
+/// \param expr: Expression to convert
+/// \return A vector of literals corresponding to the outputs of the Boolean
+///   circuit
+bvt boolbvt::convert_bitvector(const exprt &expr)
+{
+  return prop.wrap(convert_bitvector_wo_wrap(expr));
 }
 
 bvt boolbvt::convert_array_comprehension(const array_comprehension_exprt &expr)
