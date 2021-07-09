@@ -252,7 +252,10 @@ bvt boolbvt::convert_bitvector_wo_wrap(const exprt &expr)
 ///   circuit
 bvt boolbvt::convert_bitvector(const exprt &expr)
 {
-  return prop.wrap(convert_bitvector_wo_wrap(expr));
+  auto orig = convert_bitvector_wo_wrap(expr);
+  auto wrapped = prop.wrap(orig);
+  bv_cache.emplace(expr, wrapped);
+  return wrapped;
 }
 
 bvt boolbvt::convert_array_comprehension(const array_comprehension_exprt &expr)

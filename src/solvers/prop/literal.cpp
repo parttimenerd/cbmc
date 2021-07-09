@@ -20,3 +20,20 @@ std::ostream &operator << (std::ostream &out, literalt l)
   else
     return out << (l.sign()?"-":"") << l.var_no();
 }
+
+std::ostream &operator<<(std::ostream &out, bvt &v)
+{
+  bool first = true;
+  out << "[";
+  for(const auto l : v)
+  {
+    if(!first)
+    {
+      out << " ";
+    }
+    first = false;
+    out << l;
+  }
+  out << "]";
+  return out;
+}

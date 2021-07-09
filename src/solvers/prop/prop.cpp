@@ -40,7 +40,7 @@ std::size_t propt::get_number_of_solver_calls() const
 bvt propt::wrap(const bvt &vector)
 {
   bvt ret;
-  for (const auto &literal : vector)
+  for(const auto &literal : vector)
   {
     ret.push_back(wrap(literal));
   }

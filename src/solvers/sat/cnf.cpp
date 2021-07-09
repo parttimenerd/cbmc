@@ -384,11 +384,11 @@ literalt cnft::lselect(literalt a, literalt b, literalt c)
   relationless_lcnf(!a, !b, o);
   relationless_lcnf(!a, b, !o);
 
-#ifdef OPTIMAL_COMPACT_ITE
+#  ifdef OPTIMAL_COMPACT_ITE
   // additional clauses to enable better propagation
   relationless_lcnf(b, c, !o);
   relationless_lcnf(!b, !c, o);
-#endif
+#  endif
 
   return o;
 
@@ -534,11 +534,11 @@ void cnft::lcnf(const bvt &bv)
 
 literalt cnft::wrap(const literalt &literal)
 {
-  if (literal.is_constant())
+  if(literal.is_constant())
   {
     return literal;
   }
-  literalt o=new_variable();
+  literalt o = new_variable();
   gate_or(literal, const_literal(false), o);
   relate(literal, o);
   return o;

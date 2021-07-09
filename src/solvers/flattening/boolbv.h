@@ -59,7 +59,8 @@ public:
     const exprt &expr,
     const optionalt<std::size_t> expected_width = nullopt);
 
-  virtual bvt convert_bitvector_wo_wrap(const exprt &expr); // no cache, no wrapping
+  virtual bvt
+  convert_bitvector_wo_wrap(const exprt &expr); // no cache, no wrapping
 
   virtual bvt convert_bitvector(const exprt &expr); // no cache
 

@@ -134,7 +134,10 @@ public:
 
   bvt wrap(const bvt &vector);
 
-  virtual literalt wrap(const literalt &literal) { return literal; }
+  virtual literalt wrap(const literalt &literal)
+  {
+    return literal;
+  }
 
 protected:
   virtual resultt do_prop_solve() = 0;
