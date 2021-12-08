@@ -14,6 +14,10 @@ Author: Daniel Kroening, kroening@kroening.com
 #include <iostream>
 #include <ostream>
 
+bool output_relations_setting() {
+  return getenv("RELATIONS") != NULL;
+}
+
 void cnf_clause_listt::relationless_lcnf(const bvt &bv)
 {
   bvt new_bv;

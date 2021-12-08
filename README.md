@@ -171,18 +171,19 @@ Caveats of the current technique
 Options
 -------
 
-| environment variable | if set with any value, the following happens
-|--------- | ------
-| LOG_SAT  | log the names that belong to all named SAT variables
-| SKIP_CPROVER_VARIABLES | skip CProver variables (all that start with an underscore) in comments output
-| LOG_LOOP        | log start and end of last loop iteration and variable assignments
-| LOG_LOOP_MERGES | log name merges on phis and more loop info
-| LOG_ACCESS | log accessed variables
-| LOG_ASSIGN | log assigned variables
-| LOG_REC  | log stuff related to aborted recursions
-| REC      | depth of recursion for a function (e.g. REC=0 → online inline the first occurrence in the depth tree) 
-| ENABLE_REC_GRAPH   | enable abstract calls (same as passing REC_GRAPH_INLINING without an argument) with abstract recursions
-| REC_GRAPH_INLINING | depth of recursion in abstract calls, default is 0 → no inlining in abstract calls
+| environment variable   | if set with any value, the following happens                                                            |
+|------------------------|---------------------------------------------------------------------------------------------------------|
+| LOG_SAT                | log the names that belong to all named SAT variables                                                    |
+| SKIP_CPROVER_VARIABLES | skip CProver variables (all that start with an underscore) in comments output                           |
+| LOG_LOOP               | log start and end of last loop iteration and variable assignments                                       |
+| LOG_LOOP_MERGES        | log name merges on phis and more loop info                                                              |
+| LOG_ACCESS             | log accessed variables                                                                                  |
+| LOG_ASSIGN             | log assigned variables                                                                                  |
+| LOG_REC                | log stuff related to aborted recursions                                                                 |
+| REC                    | depth of recursion for a function (e.g. REC=0 → online inline the first occurrence in the depth tree)   |
+| ENABLE_REC_GRAPH       | enable abstract calls (same as passing REC_GRAPH_INLINING without an argument) with abstract recursions |
+| REC_GRAPH_INLINING     | depth of recursion in abstract calls, default is 0 → no inlining in abstract calls                      |
+| RELATIONS              | Output `__rel__` relations                                                                              |
 
 Development
 -----------

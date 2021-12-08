@@ -19,6 +19,8 @@ Author: Daniel Kroening, kroening@kroening.com
 
 #include "cnf.h"
 
+bool output_relations_setting();
+
 class relationst
 {
 public:
@@ -37,7 +39,7 @@ class cnf_clause_listt:public cnft
 {
 public:
   explicit cnf_clause_listt(message_handlert &message_handler)
-    : cnft(message_handler, true)
+    : cnft(message_handler, true), output_relations(output_relations_setting())
   {
   }
   virtual ~cnf_clause_listt() { }
@@ -89,7 +91,10 @@ public:
 
   void relate(literalt from, literalt to) override
   {
-    relations.relate(from, to);
+    if (output_relations)
+    {
+      relations.relate(from, to);
+    }
   }
 
 protected:
@@ -101,6 +106,7 @@ protected:
 
   clausest clauses;
   relationst relations;
+  bool output_relations;
 };
 
 // CNF given as a list of clauses

@@ -174,7 +174,7 @@ ls_infot ls_infot::create(const goto_functionst &functions)
     dstringt_set assigned;
     dstringt_set read;
     dstringt_set parameters;
-    optionalt<dstringt> return_var;
+    optionalt<dstringt> return_var{};
     for(const auto &param : func.parameter_identifiers)
     {
       parameters.emplace(param);
