@@ -590,6 +590,11 @@ public:
     , contained()
     {}
 
+  optional_constexpr optional(bool has_value, T contained) optional_noexcept
+          : has_value_(has_value)
+          , contained(contained)
+  {}
+
     optional( optional const & rhs )
     : has_value_( rhs.has_value() )
     {

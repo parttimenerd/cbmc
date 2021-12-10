@@ -209,6 +209,7 @@ public:
       inner_input(std::move(inner_input)),
       misc_input(std::move(misc_input))
   {
+    assert(iteration != 0 || iteration == 0);
   }
 
   void set_guard(optionalt<dstringt> guard)
