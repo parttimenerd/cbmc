@@ -352,8 +352,8 @@ void symex_target_equationt::convert_without_assertions(
     hardness.register_ssa_size(SSA_steps.size());
   });
 
-  convert_assignments(decision_procedure);
   convert_guards(decision_procedure);
+  convert_assignments(decision_procedure);
   convert_decls(decision_procedure);
   convert_assumptions(decision_procedure);
   convert_goto_instructions(decision_procedure);
