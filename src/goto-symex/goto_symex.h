@@ -442,10 +442,8 @@ protected:
   /// \param context
   /// \param unwind
   /// \return true indicates abort, with false we continue
-  virtual bool should_stop_unwind(
-    const symex_targett::sourcet &source,
-    const call_stackt &context,
-    unsigned unwind);
+  virtual bool should_stop_unwind(const symex_targett::sourcet &source, const call_stackt &context, unsigned unwind,
+                                  bool log_decision);
 
   virtual void loop_bound_exceeded(statet &state, const exprt &guard);
 

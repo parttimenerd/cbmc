@@ -101,10 +101,8 @@ protected:
     goto_statet &&goto_state,
     statet &state) override;
 
-  bool should_stop_unwind(
-    const symex_targett::sourcet &source,
-    const call_stackt &context,
-    unsigned unwind) override;
+  bool should_stop_unwind(const symex_targett::sourcet &source, const call_stackt &context, unsigned unwind,
+                          bool log_decision) override;
 
   recursing_decisiont get_unwind_recursion(
     const irep_idt &identifier,

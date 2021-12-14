@@ -291,12 +291,13 @@ void goto_symext::symex_goto(statet &state)
     }
 
     bool in_last_loop_iteration =
-      should_stop_unwind(state.source, state.call_stack(), unwind + 2) &&
-      !should_stop_unwind(state.source, state.call_stack(), unwind + 1);
+            should_stop_unwind(state.source, state.call_stack(), unwind + 2, false) &&
+            !should_stop_unwind(state.source, state.call_stack(), unwind + 1, false);
     loopt &loop = ls_stack.push_loop_iteration();
 
     if(in_last_loop_iteration)
     {
+      log.statistics() << "Starting abstract loop iteration" << log.eom;
       // we're now in the last loop iteration
       // but before the guard is evaluated
       loop.begin_last_loop_iteration(
@@ -334,7 +335,7 @@ void goto_symext::symex_goto(statet &state)
 
     unwind++;
 
-    if(should_stop_unwind(state.source, state.call_stack(), unwind))
+    if(should_stop_unwind(state.source, state.call_stack(), unwind, true))
     {
       // insert a rec child  "loop id" | input [written in prev loop and accessed] | output [written in loop]
       // a phi[current guard] is written after (!)
@@ -996,10 +997,8 @@ void goto_symext::loop_bound_exceeded(
   }
 }
 
-bool goto_symext::should_stop_unwind(
-  const symex_targett::sourcet &,
-  const call_stackt &,
-  unsigned)
+bool goto_symext::should_stop_unwind(const symex_targett::sourcet &source, const call_stackt &context, unsigned unwind,
+                                     bool log_decision)
 {
   // by default, we keep going
   return false;

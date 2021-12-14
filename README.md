@@ -34,6 +34,10 @@ Preliminary evaluations based the benchmarks from [nildumu](https://github.com/p
 ApproxFlow is sound for common benchmarks in the field of quantitative information flow for all admissible unwinding
 limits (a limit >= 3 is required, use the modified version of [ApproxFlow](https://github.com/parttimenerd/approxflow/)).
 
+*Important*: The last two iterations of any loop are used for analysis purposes. The value of the environment variable
+`REC` should be -1 what you typically would pass to `--unwind`. Therefore `… --unwind X` becomes `REC={X-1} … --unwind {X+2}`.
+This inconvenience simplified the development of the modification.
+
 Loops
 -----
 Consider the following program (found under `examples/test_loop.cpp`)

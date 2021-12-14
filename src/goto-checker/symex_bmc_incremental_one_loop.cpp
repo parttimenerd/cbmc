@@ -45,10 +45,10 @@ symex_bmc_incremental_one_loopt::symex_bmc_incremental_one_loopt(
     options.get_bool_option("ignore-properties-before-unwind-min");
 }
 
-bool symex_bmc_incremental_one_loopt::should_stop_unwind(
-  const symex_targett::sourcet &source,
-  const call_stackt &context,
-  unsigned unwind)
+bool
+symex_bmc_incremental_one_loopt::should_stop_unwind(const symex_targett::sourcet &source, const call_stackt &context,
+                                                    unsigned unwind,
+                                                    bool log_decision)
 {
   const irep_idt id = goto_programt::loop_id(source.function_id, *source.pc);
 
@@ -91,15 +91,18 @@ bool symex_bmc_incremental_one_loopt::should_stop_unwind(
     abort_unwind_decision.is_known(), "unwind decision should be taken by now");
   bool abort = abort_unwind_decision.is_true();
 
-  log_unwinding(unwind);
-  log.statistics() << (abort ? "Not unwinding" : "Unwinding") << " loop " << id
-                   << " iteration " << unwind;
+  if (log_decision)
+  {
+    log_unwinding(unwind);
+    log.statistics() << (abort ? "Not unwinding" : "Unwinding") << " loop " << id
+                     << " iteration " << unwind;
 
-  if(this_loop_limit != std::numeric_limits<unsigned>::max())
-    log.statistics() << " (" << this_loop_limit << " max)";
+    if (this_loop_limit != std::numeric_limits<unsigned>::max())
+      log.statistics() << " (" << this_loop_limit << " max)";
 
-  log.statistics() << " " << source.pc->source_location << " thread "
-                   << source.thread_nr << log.eom;
+    log.statistics() << " " << source.pc->source_location << " thread "
+                     << source.thread_nr << log.eom;
+  }
 
   return abort;
 }

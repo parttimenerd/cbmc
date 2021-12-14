@@ -45,10 +45,8 @@ protected:
   // returns true if the symbolic execution is to be interrupted for checking
   bool check_break(const irep_idt &loop_id, unsigned unwind) override;
 
-  bool should_stop_unwind(
-    const symex_targett::sourcet &source,
-    const call_stackt &context,
-    unsigned unwind) override;
+  bool should_stop_unwind(const symex_targett::sourcet &source, const call_stackt &context, unsigned unwind,
+                          bool log_decision) override;
 
   void log_unwinding(unsigned unwind);
 

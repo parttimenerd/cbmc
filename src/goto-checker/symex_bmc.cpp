@@ -113,10 +113,8 @@ void symex_bmct::merge_goto(
     symex_coverage.covered(prev_pc, state.source.pc);
 }
 
-bool symex_bmct::should_stop_unwind(
-  const symex_targett::sourcet &source,
-  const call_stackt &context,
-  unsigned unwind)
+bool symex_bmct::should_stop_unwind(const symex_targett::sourcet &source, const call_stackt &context, unsigned unwind,
+                                    bool log_decision)
 {
   const irep_idt id = goto_programt::loop_id(source.function_id, *source.pc);
 
@@ -147,15 +145,17 @@ bool symex_bmct::should_stop_unwind(
     abort_unwind_decision.is_known(), "unwind decision should be taken by now");
   bool abort = abort_unwind_decision.is_true();
 
-  log.statistics() << (abort ? "Not unwinding" : "Unwinding") << " loop " << id
-                   << " iteration " << unwind;
+  if (log_decision)
+  {
+    log.statistics() << (abort ? "Not unwinding" : "Unwinding") << " loop " << id
+                     << " iteration " << unwind;
 
-  if(this_loop_limit != std::numeric_limits<unsigned>::max())
-    log.statistics() << " (" << this_loop_limit << " max)";
+    if (this_loop_limit != std::numeric_limits<unsigned>::max())
+      log.statistics() << " (" << this_loop_limit << " max)";
 
-  log.statistics() << " " << source.pc->source_location << " thread "
-                   << source.thread_nr << log.eom;
-
+    log.statistics() << " " << source.pc->source_location << " thread "
+                     << source.thread_nr << log.eom;
+  }
   return abort;
 }
 
