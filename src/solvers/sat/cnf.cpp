@@ -530,6 +530,7 @@ void cnft::lcnf(const bvt &bv)
       }
     }
   }
+  relationless_lcnf(bv);
 }
 
 literalt cnft::wrap(const literalt &literal)
