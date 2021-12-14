@@ -297,7 +297,7 @@ void loopt::begin_last_loop_iteration(
   const resolvet &resolve,
   const assign_unknownt &assign_unknown)
 {
-  PRECONDITION(iterations.size() >= 2);
+//  PRECONDITION(iterations.size() >= 2);
   PRECONDITION(!last_loop_iter);
   auto input = get_loop_iter_input();
   std::vector<dstringt> new_input;
