@@ -78,23 +78,27 @@ void dimacs_cnft::write_dimacs_clause(
 
 void dimacs_cnft::write_clauses(std::ostream &out)
 {
-  std::size_t count = 0;
-  std::stringstream output_block;
-  for(clausest::const_iterator it=clauses.begin();
-      it!=clauses.end(); it++)
+  if (getenv("OMIT_SAT") == nullptr)
   {
-    write_dimacs_clause(*it, output_block, break_lines);
-
-    // print the block once in a while
-    if(++count % CNF_DUMP_BLOCK_SIZE == 0)
+    std::size_t count = 0;
+    std::stringstream output_block;
+    for (clausest::const_iterator it = clauses.begin();
+         it != clauses.end(); it++)
     {
-      out << output_block.str();
-      output_block.str("");
+      write_dimacs_clause(*it, output_block, break_lines);
+
+      // print the block once in a while
+      if (++count % CNF_DUMP_BLOCK_SIZE == 0)
+      {
+        out << output_block.str();
+        output_block.str("");
+      }
     }
+
+    // make sure the final block is printed as well
+    out << output_block.str();
   }
 
-  // make sure the final block is printed as well
-  out << output_block.str();
   relations.write_relations(out);
 }
 

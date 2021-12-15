@@ -188,6 +188,7 @@ Options
 | ENABLE_REC_GRAPH       | enable abstract calls (same as passing REC_GRAPH_INLINING without an argument) with abstract recursions |
 | REC_GRAPH_INLINING     | depth of recursion in abstract calls, default is 0 → no inlining in abstract calls                      |
 | RELATIONS              | Output `__rel__` relations                                                                              |
+| OMIT_SAT               | Omit the SAT output, helpful when passing `RELATIONS`                                                   |
 
 Development
 -----------
