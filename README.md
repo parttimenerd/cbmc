@@ -133,7 +133,6 @@ c goto_symex::\guard#3 4
 c goto_symex::\guard#4 6
 […]
 c fib(signed_int)#return_value!0#2 -426 459 461 463 465 467 469 471 473 475 477 479 481 483 485 487 489 491 493 495 497 499 501 503 505 507 509 511 513 515 517 519
-c __CPROVER_deallocated#1 FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
 c fib(signed_int)::$tmp::return_value_fib!0@3#2 582 583 584 585 586 587 588 589 590 591 592 593 594 595 596 597 598 599 600 601 602 603 604 605 606 607 608 609 610 611 612 613
 c rec child 0 fib(signed_int) | input fib(signed_int)::num fib(signed_int)::num!0@5#1 | output fib(signed_int)#return_value fib(signed_int)#return_value!0#1 | constraint goto_symex::\guard#1 goto_symex::\guard#2 goto_symex::\guard#3 goto_symex::\guard#4
 ```
@@ -145,7 +144,7 @@ Format of the `c rec` lines:
 This line gives us information on the aborted recursion: the recursive has not been evaluated, but the new variables
 for the result (and the effects) of the function call have been introduced.
 
-It is also possible to gain knownledge on the recursive call by executing an abstract version (all read variables are
+It is also possible to gain knowledge on the recursive call by executing an abstract version (all read variables are
 unknown at the start of the function application), this can be done be setting the environment variable 
 `ENABLE_REC_GRAPH`: The call `ENABLE_REC_GRAPH="" cbmc --unwind 3 --dimacs examples/test_recursion.cpp`
 results in
@@ -163,6 +162,7 @@ The abstract recursions take place after the program itself is fully processed.
 
 Relations
 ---------
+The output starts with `c __rel__ p [number of variables] [number of relation lines that follow]`.
 The output line `c __rel__ [to] [from 1] […] [from n]` states that there is a dependency from `[from 1]`, …, `[from n]`
 to `[to]` in the underlying linearized program (either control or data dependency).
 

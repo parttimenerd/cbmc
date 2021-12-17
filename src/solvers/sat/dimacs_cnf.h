@@ -22,6 +22,8 @@ public:
 
   virtual void write_dimacs_cnf(std::ostream &out);
 
+  virtual void write_relations(std::ostream &out);
+
   // dummy functions
 
   const std::string solver_text() override

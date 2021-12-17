@@ -43,6 +43,11 @@ void dimacs_cnft::write_dimacs_cnf(std::ostream &out)
   write_clauses(out);
 }
 
+void dimacs_cnft::write_relations(std::ostream &out)
+{
+  relations.write_relations(out, cnft::no_variables());
+}
+
 void dimacs_cnft::write_problem_line(std::ostream &out)
 {
   // We start counting at 1, thus there is one variable fewer.
@@ -78,28 +83,23 @@ void dimacs_cnft::write_dimacs_clause(
 
 void dimacs_cnft::write_clauses(std::ostream &out)
 {
-  if (getenv("OMIT_SAT") == nullptr)
+  std::size_t count = 0;
+  std::stringstream output_block;
+  for (clausest::const_iterator it = clauses.begin();
+       it != clauses.end(); it++)
   {
-    std::size_t count = 0;
-    std::stringstream output_block;
-    for (clausest::const_iterator it = clauses.begin();
-         it != clauses.end(); it++)
+    write_dimacs_clause(*it, output_block, break_lines);
+
+    // print the block once in a while
+    if (++count % CNF_DUMP_BLOCK_SIZE == 0)
     {
-      write_dimacs_clause(*it, output_block, break_lines);
-
-      // print the block once in a while
-      if (++count % CNF_DUMP_BLOCK_SIZE == 0)
-      {
-        out << output_block.str();
-        output_block.str("");
-      }
+      out << output_block.str();
+      output_block.str("");
     }
-
-    // make sure the final block is printed as well
-    out << output_block.str();
   }
 
-  relations.write_relations(out);
+  // make sure the final block is printed as well
+  out << output_block.str();
 }
 
 void dimacs_cnf_dumpt::lcnf(const bvt &bv)

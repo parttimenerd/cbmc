@@ -26,7 +26,7 @@ class relationst
 public:
   void relate(literalt from, literalt to);
   // format: "[to] [from 1] … [from n]\n[…]"
-  void write_relations(std::ostream &out);
+  void write_relations(std::ostream &out, size_t no_variables);
 
 private:
   // there is a relation (x, i) for every element x in the vector at index i (in the top level vector)

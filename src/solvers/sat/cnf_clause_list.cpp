@@ -59,8 +59,9 @@ void relationst::relate(literalt from, literalt to)
   }
 }
 
-void relationst::write_relations(std::ostream &out)
+void relationst::write_relations(std::ostream &out, size_t no_variables)
 {
+  out << "c __rel__ p " << no_variables << " " << relations.size() << "\n";
   for(size_t i = 0; i < relations.size(); i++)
   {
     auto &froms = relations.at(i);
