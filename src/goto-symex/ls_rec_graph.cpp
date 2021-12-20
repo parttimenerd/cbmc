@@ -104,7 +104,7 @@ std::string to_string(const name_mappingt &mapping)
 dstringt basename(const dstringt &name)
 {
   std::string name_str{name.c_str()};
-  auto middle = name_str.find('#');
+  auto middle = name_str.rfind('#');
   return name_str.substr(0, middle);
 }
 
@@ -118,7 +118,7 @@ dstringt l0_name(const dstringt &name)
 std::tuple<dstringt, size_t> split_var(const dstringt &name)
 {
   std::string name_str{name.c_str()};
-  auto middle = name_str.find('#');
+  auto middle = name_str.rfind('#');
   std::istringstream iss(name_str.substr(middle + 1));
   size_t num;
   iss >> num;
